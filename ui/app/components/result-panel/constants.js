@@ -6,6 +6,24 @@ export const AX_LAYER_TABS = [
   { id: 'L5', label: 'L5 Action Binder' },
 ];
 
+export const ACTION_PACK_PRESETS = [
+  {
+    id: 'cursor',
+    label: 'Cursor',
+    description: 'AI 코딩 채팅에 바로 붙여 넣는 실행 프롬프트',
+  },
+  {
+    id: 'jira',
+    label: 'Jira',
+    description: '이슈 생성용 작업 계획 템플릿',
+  },
+  {
+    id: 'pr',
+    label: 'PR',
+    description: 'Pull Request 본문 초안 템플릿',
+  },
+];
+
 export const WARNING_SEVERITY_SCORE = {
   critical: 95,
   high: 78,

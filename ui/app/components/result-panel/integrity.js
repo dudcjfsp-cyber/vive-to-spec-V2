@@ -3,14 +3,14 @@ import {
   INTENT_FIELD_LABELS,
   WARNING_DOMAIN_WEIGHT,
   WARNING_SEVERITY_SCORE,
-} from './constants';
+} from './constants.js';
 import {
   clamp,
   isObject,
   toObjectArray,
   toStringArray,
   toText,
-} from './utils';
+} from './utils.js';
 
 export function inferRiskProfile(detail) {
   const text = toText(detail).toLowerCase();

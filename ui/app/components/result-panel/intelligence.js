@@ -3,8 +3,8 @@ import {
   INTENT_FIELD_LABELS,
   INTENT_FIELD_ORDER,
   STOPWORDS,
-} from './constants';
-import { clamp, toText } from './utils';
+} from './constants.js';
+import { clamp, toText } from './utils.js';
 
 function normalizeText(value) {
   return toText(value).replace(/\s+/g, ' ').trim();

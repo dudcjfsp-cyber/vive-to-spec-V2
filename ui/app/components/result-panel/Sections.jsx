@@ -252,22 +252,52 @@ export function L5ActionBinder({
   todayActions,
   gateStatus,
   actionPack,
+  actionPackPresetId,
+  actionPackPresets,
+  actionPackExportStatus,
+  onChangeActionPackPreset,
   onCreateActionPack,
+  onExportActionPack,
 }) {
+  const currentPreset = actionPackPresets.find((preset) => preset.id === actionPackPresetId);
+
   return (
     <section>
       <h3>L5 Action Binder</h3>
       <p>L4 게이트 상태를 통과해야 실행 팩을 생성할 수 있습니다.</p>
+      <div style={{ marginBottom: 10 }}>
+        <label htmlFor="l5-action-pack-preset" style={{ display: 'block', fontWeight: 600 }}>
+          내보내기 프리셋
+        </label>
+        <select
+          id="l5-action-pack-preset"
+          value={actionPackPresetId}
+          onChange={(event) => onChangeActionPackPreset(event.target.value)}
+        >
+          {actionPackPresets.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+        <p style={{ fontSize: 12, marginBottom: 0 }}>{toText(currentPreset?.description, '-')}</p>
+      </div>
       <ul>
         {todayActions.length
           ? todayActions.map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)
           : <li>오늘 할 일이 아직 생성되지 않았습니다.</li>}
       </ul>
-      <button type="button" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
-        실행 팩 생성
-      </button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
+          실행 팩 생성
+        </button>
+        <button type="button" onClick={onExportActionPack} disabled={!actionPack}>
+          실행 팩 복사
+        </button>
+      </div>
       {gateStatus === 'blocked' && <p style={{ fontSize: 12 }}>L4 상태가 blocked라서 실행 CTA가 비활성화되었습니다.</p>}
       {gateStatus === 'review' && <p style={{ fontSize: 12 }}>경고가 남아 있어 review 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
+      {actionPackExportStatus && <p style={{ fontSize: 12 }}>{actionPackExportStatus}</p>}
       {actionPack && (
         <pre style={{ whiteSpace: 'pre-wrap', background: '#fafafa', padding: 8, border: '1px solid #e5e5e5', marginTop: 10 }}>
           {actionPack}

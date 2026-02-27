@@ -1,19 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AX_LAYER_TABS,
-  CTA_HISTORY_MAX_LENGTH,
-} from './result-panel/constants';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AX_LAYER_TABS } from './result-panel/constants';
 import {
   appendLine,
   deepClone,
   isObject,
-  isPromiseLike,
-  toErrorMessage,
   toStringArray,
   toText,
 } from './result-panel/utils';
 import {
-  buildActionPack,
   buildContextOutputs,
   buildLogicMap,
   buildProblemFrame,
@@ -38,6 +32,8 @@ import {
   LayerTabButton,
   TextBlock,
 } from './result-panel/Sections';
+import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
+import { useCtaHistory } from './result-panel/hooks/useCtaHistory.js';
 
 export default function ResultPanel({
   status,
@@ -71,12 +67,22 @@ export default function ResultPanel({
   );
   const [exportStatus, setExportStatus] = useState('');
   const [resolvedWarningIds, setResolvedWarningIds] = useState([]);
-  const [actionPack, setActionPack] = useState('');
-  const [ctaHistory, setCtaHistory] = useState([]);
-  const historySequenceRef = useRef(0);
+
+  const {
+    actionPack,
+    actionPackPresetId,
+    actionPackPresets,
+    actionPackExportStatus,
+    buildActionPackSnapshot,
+    restoreActionPackSnapshot,
+    resetActionPackState,
+    changeActionPackPreset,
+    buildAndStoreActionPack,
+    exportCurrentActionPack,
+  } = useActionPackState();
 
   // 2) Snapshot/rollback primitives for CTA reliability
-  const buildPanelSnapshot = () => ({
+  const buildPanelSnapshot = useCallback(() => ({
     activeLayer,
     hypothesis: deepClone(hypothesis),
     hypothesisConfirmed,
@@ -88,10 +94,23 @@ export default function ResultPanel({
     contextOutputs: deepClone(contextOutputs),
     exportStatus,
     resolvedWarningIds: deepClone(resolvedWarningIds),
-    actionPack,
-  });
+    ...buildActionPackSnapshot(),
+  }), [
+    activeLayer,
+    buildActionPackSnapshot,
+    changedAxis,
+    contextOutputs,
+    exportStatus,
+    hypothesis,
+    hypothesisConfirmed,
+    hypothesisConfirmedStamp,
+    logicMap,
+    permissionGuardEnabled,
+    resolvedWarningIds,
+    syncHint,
+  ]);
 
-  const restorePanelSnapshot = (snapshot) => {
+  const restorePanelSnapshot = useCallback((snapshot) => {
     const safe = isObject(snapshot) ? snapshot : {};
     setActiveLayer(toText(safe.activeLayer, 'L1'));
     setHypothesis(isObject(safe.hypothesis) ? deepClone(safe.hypothesis) : buildProblemFrame({}));
@@ -112,67 +131,24 @@ export default function ResultPanel({
       }));
     setExportStatus(toText(safe.exportStatus));
     setResolvedWarningIds(Array.isArray(safe.resolvedWarningIds) ? deepClone(safe.resolvedWarningIds) : []);
-    setActionPack(toText(safe.actionPack));
-  };
+    restoreActionPackSnapshot(safe);
+  }, [devSpec, masterPrompt, nondevSpec, restoreActionPackSnapshot]);
 
-  const appendHistoryEntry = ({ layerId, actionId, label, meta = {}, snapshotBefore }) => {
-    historySequenceRef.current += 1;
-    const entry = {
-      id: `cta-${Date.now()}-${historySequenceRef.current}`,
-      ts: Date.now(),
-      layerId: toText(layerId, 'SYSTEM'),
-      actionId: toText(actionId, 'action'),
-      label: toText(label, '액션 실행'),
-      status: 'running',
-      error: '',
-      meta: isObject(meta) ? deepClone(meta) : {},
-      snapshotBefore: isObject(snapshotBefore) ? deepClone(snapshotBefore) : null,
-    };
-    setCtaHistory((prev) => [entry, ...prev].slice(0, CTA_HISTORY_MAX_LENGTH));
-    return entry.id;
-  };
-
-  const patchHistoryEntry = (entryId, patch = {}) => {
-    if (!toText(entryId)) return;
-    setCtaHistory((prev) => prev.map((entry) => (
-      entry.id === entryId ? { ...entry, ...patch } : entry
-    )));
-  };
-
-  const runCtaAction = ({ layerId, actionId, label, meta = {}, mutate }) => {
-    const snapshotBefore = deepClone(buildPanelSnapshot());
-    const entryId = appendHistoryEntry({ layerId, actionId, label, meta, snapshotBefore });
-
-    if (typeof mutate !== 'function') {
-      patchHistoryEntry(entryId, { status: 'done' });
-      return undefined;
-    }
-
-    const failAndRestore = (error) => {
-      restorePanelSnapshot(snapshotBefore);
-      const message = toErrorMessage(error);
-      patchHistoryEntry(entryId, { status: 'failed', error: message });
+  const {
+    ctaHistory,
+    runCtaAction,
+    rollbackToHistory,
+    resetCtaHistory,
+  } = useCtaHistory({
+    buildPanelSnapshot,
+    restorePanelSnapshot,
+    onActionFailure: (message) => {
       setExportStatus(`CTA 실행 실패: ${message}`);
-      return undefined;
-    };
-
-    try {
-      const result = mutate();
-      if (isPromiseLike(result)) {
-        return result
-          .then((resolved) => {
-            patchHistoryEntry(entryId, { status: 'done', error: '' });
-            return resolved;
-          })
-          .catch((error) => failAndRestore(error));
-      }
-
-      patchHistoryEntry(entryId, { status: 'done', error: '' });
-      return result;
-    } catch (error) {
-      return failAndRestore(error);
-    }
-  };
+    },
+    onRollbackApplied: (target) => {
+      setExportStatus(`롤백 적용: ${target.label} 이전 상태로 되돌렸습니다.`);
+    },
+  });
 
   // 3) Source payload hydration
   useEffect(() => {
@@ -196,11 +172,17 @@ export default function ResultPanel({
     }));
     setExportStatus('');
     setResolvedWarningIds([]);
-    setActionPack('');
-    setCtaHistory([]);
-    historySequenceRef.current = 0;
+    resetActionPackState();
+    resetCtaHistory();
     setActiveLayer('L1');
-  }, [standardOutput, devSpec, nondevSpec, masterPrompt]);
+  }, [
+    devSpec,
+    masterPrompt,
+    nondevSpec,
+    resetActionPackState,
+    resetCtaHistory,
+    standardOutput,
+  ]);
 
   const todayActions = useMemo(
     () => toStringArray(standardOutput?.오늘_할_일_3개),
@@ -519,44 +501,27 @@ export default function ResultPanel({
       layerId: 'L5',
       actionId: 'create-action-pack',
       label: '실행 팩 생성',
-      meta: { gateStatus },
+      meta: { gateStatus, preset: actionPackPresetId },
       mutate: () => {
-        const pack = buildActionPack({
+        buildAndStoreActionPack({
           contextOutputs,
           todayActions,
           activeModel,
           gateStatus,
         });
-        setActionPack(pack);
       },
     });
   };
 
-  const rollbackToHistory = (entryId) => {
-    const target = ctaHistory.find((entry) => entry.id === entryId);
-    if (!target || !isObject(target.snapshotBefore)) return;
-    const targetSnapshot = deepClone(target.snapshotBefore);
-
-    if (typeof window !== 'undefined') {
-      const message = `[${target.layerId}] ${target.label} 이전 상태로 되돌릴까요?`;
-      if (!window.confirm(message)) return;
-    }
-
-    runCtaAction({
-      layerId: 'SYSTEM',
-      actionId: 'rollback',
-      label: '이력 롤백 적용',
-      meta: {
-        targetId: target.id,
-        targetLayer: target.layerId,
-        targetAction: target.actionId,
-      },
-      mutate: () => {
-        restorePanelSnapshot(targetSnapshot);
-        setExportStatus(`롤백 적용: ${target.label} 이전 상태로 되돌렸습니다.`);
-      },
-    });
-  };
+  const exportActionPack = async () => runCtaAction({
+    layerId: 'L5',
+    actionId: 'export-action-pack',
+    label: '실행 팩 복사',
+    meta: { preset: actionPackPresetId },
+    mutate: async () => {
+      await exportCurrentActionPack();
+    },
+  });
 
   // 7) Status gating + render
   if (status === 'idle') {
@@ -635,7 +600,12 @@ export default function ResultPanel({
             todayActions={todayActions}
             gateStatus={gateStatus}
             actionPack={actionPack}
+            actionPackPresetId={actionPackPresetId}
+            actionPackPresets={actionPackPresets}
+            actionPackExportStatus={actionPackExportStatus}
+            onChangeActionPackPreset={changeActionPackPreset}
             onCreateActionPack={createActionPack}
+            onExportActionPack={exportActionPack}
           />
         )}
       </section>

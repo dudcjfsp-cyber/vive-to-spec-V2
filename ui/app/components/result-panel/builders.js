@@ -111,16 +111,77 @@ export function buildActionPack({
   todayActions,
   activeModel,
   gateStatus,
+  presetId,
 }) {
+  const safeContext = isObject(contextOutputs) ? contextOutputs : {};
+  const safeSteps = todayActions.length
+    ? todayActions
+    : ['액션 항목이 없어 우선순위를 다시 확정하세요.'];
+  const selectedPreset = toText(presetId, 'cursor');
+  const model = toText(activeModel, 'OFFLINE');
+  const gate = toText(gateStatus, 'review');
+
+  if (selectedPreset === 'jira') {
+    return [
+      '# Jira Execution Pack',
+      `- preset: Jira`,
+      `- model: ${model}`,
+      `- gate: ${gate}`,
+      '',
+      '## Summary',
+      toText(safeContext.nondev) || '-',
+      '',
+      '## Execution Checklist',
+      ...safeSteps.map((item) => `- [ ] ${item}`),
+      '',
+      '## Acceptance Criteria',
+      '- [ ] L4 gate 상태가 review/pass로 유지된다.',
+      '- [ ] 동작 변경 사항이 스펙/로직맵과 정합성을 유지한다.',
+      '- [ ] 구현 결과 검증 로그를 남긴다.',
+      '',
+      '## AI Prompt Snippet',
+      toText(safeContext.aiCoding) || '-',
+    ].join('\n');
+  }
+
+  if (selectedPreset === 'pr') {
+    return [
+      '# Pull Request Draft Pack',
+      `- preset: PR`,
+      `- model: ${model}`,
+      `- gate: ${gate}`,
+      '',
+      '## Summary',
+      toText(safeContext.nondev) || '-',
+      '',
+      '## Changes',
+      ...safeSteps.map((item, idx) => `${idx + 1}. ${item}`),
+      '',
+      '## Validation',
+      '- [ ] 단위 테스트 또는 빌드 검증 완료',
+      '- [ ] L4 경고 상태 재확인',
+      '',
+      '## Reviewer Notes',
+      toText(safeContext.dev) || '-',
+      '',
+      '## AI Prompt Used',
+      toText(safeContext.aiCoding) || '-',
+    ].join('\n');
+  }
+
   return [
-    '# Execution Pack',
-    `- model: ${activeModel}`,
-    `- gate: ${toText(gateStatus, 'review')}`,
+    '# Cursor Execution Pack',
+    `- preset: Cursor`,
+    `- model: ${model}`,
+    `- gate: ${gate}`,
     '',
-    '## 오늘 실행 3단계',
-    ...(todayActions.length ? todayActions.map((item, idx) => `${idx + 1}. ${item}`) : ['1. 액션 항목이 없어 우선순위를 다시 확정하세요.']),
+    '## Task Plan',
+    ...safeSteps.map((item, idx) => `${idx + 1}. ${item}`),
     '',
-    '## AI Coding Prompt',
-    contextOutputs.aiCoding || '-',
+    '## Context (Developer)',
+    toText(safeContext.dev) || '-',
+    '',
+    '## Prompt (AI Coding)',
+    toText(safeContext.aiCoding) || '-',
   ].join('\n');
 }
