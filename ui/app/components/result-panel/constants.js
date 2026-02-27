@@ -1,9 +1,9 @@
 export const AX_LAYER_TABS = [
-  { id: 'L1', label: 'L1 Intent Extractor' },
-  { id: 'L2', label: 'L2 Logic Mapper' },
-  { id: 'L3', label: 'L3 Context Optimizer' },
-  { id: 'L4', label: 'L4 Integrity Simulator' },
-  { id: 'L5', label: 'L5 Action Binder' },
+  { id: 'L1', label: 'L1 의도 추출기' },
+  { id: 'L2', label: 'L2 로직 매퍼' },
+  { id: 'L3', label: 'L3 컨텍스트 최적화' },
+  { id: 'L4', label: 'L4 무결성 시뮬레이터' },
+  { id: 'L5', label: 'L5 실행 바인더' },
 ];
 
 export const ACTION_PACK_PRESETS = [
@@ -48,15 +48,15 @@ export const WARNING_DOMAIN_LABEL = {
 export const GATE_SCORE_THRESHOLD = 70;
 export const GATE_STATUS_META = {
   blocked: {
-    label: 'blocked',
+    label: '차단',
     message: '고위험 경고가 남아 실행이 차단됩니다.',
   },
   review: {
-    label: 'review',
+    label: '검토',
     message: '차단은 아니지만 실행 전 검토가 필요한 경고가 있습니다.',
   },
   pass: {
-    label: 'pass',
+    label: '통과',
     message: '현재 고위험 경고가 없어 실행 가능합니다.',
   },
 };

@@ -11,23 +11,24 @@ export default function ApiKeyModal({
   if (!isOpen) return null;
 
   return (
-    <section style={{ border: '1px solid #ccc', padding: 12, marginTop: 12 }}>
-      <h3>{providerLabel} API Key</h3>
-      <input
-        type="password"
-        value={tempKey}
-        onChange={(event) => onTempKeyChange(event.target.value)}
-        placeholder="Paste API key"
-        style={{ width: '100%' }}
-      />
-      <div style={{ marginTop: 8 }}>
-        <button type="button" onClick={onSave}>Save</button>
-        <button type="button" onClick={onClose} style={{ marginLeft: 8 }}>Close</button>
-      </div>
-      <p style={{ fontSize: 12 }}>
-        Key is stored in sessionStorage only and expires in 30 minutes.
-      </p>
-    </section>
+    <div className="modal-overlay" onClick={onClose}>
+      <section className="modal-card" onClick={(event) => event.stopPropagation()}>
+        <h3>{providerLabel} API 키</h3>
+        <p className="small-muted">세션 단위로만 저장되며 30분 후 자동 만료됩니다.</p>
+        <input
+          type="password"
+          value={tempKey}
+          onChange={(event) => onTempKeyChange(event.target.value)}
+          placeholder="API 키를 붙여넣으세요"
+        />
+        <div className="stack-actions form-group">
+          <button type="button" className="btn btn-primary" onClick={onSave}>저장</button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>닫기</button>
+        </div>
+        <p className="modal-footnote">
+          API key는 `sessionStorage`에만 유지되며 브라우저 종료 시 제거됩니다.
+        </p>
+      </section>
+    </div>
   );
 }
-

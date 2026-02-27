@@ -1,53 +1,46 @@
-# Session Handoff (Latest)
+﻿# Session Handoff (Latest)
 
 - Updated: 2026-02-27
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
-- HEAD: `ed0bfd9` (`refactor: split AX layer panel into modular units`)
-- Git status: working tree dirty(5 files), `origin/main` 대비 `ahead 3`
+- HEAD (handoff write-time): `6e9bd4e` (`feat: add action pack presets and modularize result panel state`)
+- Git status (handoff write-time): UI/문구/가이드 개선 변경사항 커밋 대기
 
 ## Completed In This Run
 
-1. AX 레이어 동작 구현 (`75d7566`)
-- L1: 의도 추론 신뢰도, 우선 확인 질문, 추천 가설 적용 CTA
-- L2: 축별 커버리지/정합성 점수, 동기화 제안, 연동 반영
-- L4: 무결성 신호(Data-Flow/Permission/Coherence), 점수 기반 경고 우선순위/게이트
-- L5: L4 게이트 연동 실행 팩 생성 제어
+1. Tron풍 시안블루 사이버펑크 UI 리디자인
+- 글로벌 스타일 추가: `ui/app/styles.css`
+- 레이아웃 재구성: 헤더/좌우 패널/레이어 패널 시각 통일
+- 입력폼/탭/모달/이력패널의 네온 톤 일관 적용
 
-2. 안정성 보강
-- CTA 실행 이력 저장, 실패 시 자동 복원, 롤백 확인 다이얼로그
-- 롤백/이력 상태(`running/done/failed`) 표시
+2. 사용자 노출 텍스트 한글화
+- 헤더/입력 패널/모달/상태 문구/레이어 탭 제목 한글화
+- 실행 팩 프리셋 출력 본문(Jira/PR/Cursor) 한글화
+- 오류 fallback 문구 한글화
 
-3. 리팩터링 분리 (`ed0bfd9`)
-- 대형 `ResultPanel.jsx` 책임 분리
-- 신규 모듈 생성:
-  - `ui/app/components/result-panel/constants.js`
-  - `ui/app/components/result-panel/utils.js`
-  - `ui/app/components/result-panel/intelligence.js`
-  - `ui/app/components/result-panel/integrity.js`
-  - `ui/app/components/result-panel/builders.js`
-  - `ui/app/components/result-panel/Sections.jsx`
-
-4. 우선순위 1 완료: `integrity.js` / `intelligence.js` 단위 테스트 추가 (working tree)
-- 테스트 러너 추가: `package.json`에 `npm test` 스크립트(`node --test`)
-- 신규 테스트 파일:
-  - `ui/app/components/result-panel/integrity.test.js`
-  - `ui/app/components/result-panel/intelligence.test.js`
-- Node ESM 테스트 호환을 위해 내부 상대 import 확장자 명시
-  - `ui/app/components/result-panel/integrity.js`
-  - `ui/app/components/result-panel/intelligence.js`
+3. L4 -> L1 이동 맥락 개선 (핵심 UX)
+- L4 경고에서 `L1에서 확인` 클릭 시 L1 수정 대상 필드 하이라이트
+- 긴급도 색상 도입:
+  - 빨강: 즉시 수정 필요
+  - 주황: 우선 수정 권장
+  - 노랑: 검토 필요
+- L1 상단에 긴급도 범례 + 이동 안내 배너 + 대상 필드 칩 추가
+- 수정 완료 시 필드 하이라이트 자동 해제
 
 ## Current File Roles
 
-- `ui/app/components/ResultPanel.jsx`: 패널 오케스트레이션/상태/CTA 핸들러
-- `.../intelligence.js`: L1/L2 점수 및 제안 계산(순수 함수)
-- `.../integrity.js`: L4 경고 생성, 스코어링, 게이트 판정(순수 함수)
-- `.../integrity.test.js`: 리스크 분류/스코어링/게이트/경고 그래프 테스트
-- `.../intelligence.test.js`: L1/L2 신뢰도/동기화 제안 테스트
-- `.../builders.js`: 화면 표준 출력 빌더
-- `.../Sections.jsx`: L1~L5 및 이력 UI 섹션 컴포넌트
-- `ui/app/App.jsx`: `vibe` 포함 ResultPanel 입력 전달
-- `ui/app/hooks/useAppController.js`: `standardOutput` 파생값 제공
+- `ui/app/styles.css`: Tron 테마 전역 스타일(배경/네온/컴포넌트 스킨)
+- `src/main.jsx`: 전역 스타일 엔트리 연결
+- `ui/app/App.jsx`: 앱 쉘 레이아웃/헤더/2열 배치
+- `ui/app/components/ControlPanel.jsx`: 입력 설정 패널 UI
+- `ui/app/components/ApiKeyModal.jsx`: API 키 모달 UI
+- `ui/app/components/ResultPanel.jsx`: L1 포커스 가이드 상태/연결 오케스트레이션
+- `ui/app/components/result-panel/Sections.jsx`: L1 강조 표시/범례/배너, L2~L5 섹션 UI
+- `ui/app/components/result-panel/constants.js`: 레이어 탭 라벨 한글화
+- `ui/app/components/result-panel/builders.js`: 실행 팩 출력 텍스트 한글화
+- `ui/app/components/result-panel/integrity.js`: L4 경고 문구 일부 한글화
+- `ui/app/components/result-panel/utils.js`: 에러 fallback 한글화
+- `ui/app/hooks/useAppController.js`: 사용자 에러 메시지 한글화
 
 ## Validation Done
 
@@ -56,18 +49,18 @@
 
 ## Known Risks / Notes
 
-- UI 컴포넌트 통합 테스트는 아직 없음(현재는 순수 함수 단위 테스트 중심)
-- L1/L2/L4 지표는 휴리스틱 기반이라 도메인별 튜닝 필요
-- `ResultPanel.jsx`는 분리 후에도 오케스트레이션 코드가 큰 편(추가 hook 분리 여지)
+- L4 경고 -> L1 필드 매핑은 규칙 기반 추정(정밀도 튜닝 여지)
+- UI 통합(E2E) 테스트는 아직 없음
+- 현재 스타일 톤은 강한 네온 대비라 라이트/저대비 접근성 버전 별도 검토 필요
 
 ## Suggested Next Priorities
 
-1. 롤백 전 변경 diff 미리보기(가시성 개선)
-2. L5 실행 팩 내보내기 프리셋(예: Cursor/Jira/PR 템플릿) 추가
-3. `ResultPanel.jsx` 오케스트레이션 hook 분리(유지보수성 개선)
+1. L4 경고 유형별 L1 타겟 필드 매핑 정밀화(오탐/누락 감소)
+2. 긴급도 색상 접근성 개선(대체 패턴/아이콘/명암 대비)
+3. 레이어별 회귀 테스트(특히 L4->L1 이동 하이라이트 플로우)
 
 ## Next Session Start Prompt (Recommended)
 
-1. `docs/handoff/latest.md` 먼저 읽고 현재 HEAD 기준 상태 확인
-2. `ui/roadmap/layer-tab-ax-evolution.ko.md` 기준 미완료 항목부터 진행
-3. 기능 작업 전 `cmd /c npm test && cmd /c npm run build`로 기준 상태 확인
+1. `docs/handoff/latest.md` 확인 후 최근 커밋부터 상태 점검 (`git log --oneline -n 3`)
+2. `cmd /c npm test && cmd /c npm run build` 기준 상태 재검증
+3. `npm run dev -- --host 127.0.0.1 --port 5174`로 UI 확인 후 L4->L1 하이라이트 UX 튜닝 진행

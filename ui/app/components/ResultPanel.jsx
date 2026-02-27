@@ -35,6 +35,19 @@ import {
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
 import { useCtaHistory } from './result-panel/hooks/useCtaHistory.js';
 
+const INTENT_FIELD_IDS = ['who', 'when', 'what', 'why', 'success'];
+
+function buildEmptyL1FocusGuide() {
+  return {
+    active: false,
+    warningId: '',
+    warningTitle: '',
+    urgency: 'yellow',
+    targetFields: [],
+    message: '',
+  };
+}
+
 export default function ResultPanel({
   status,
   errorMessage,
@@ -67,6 +80,7 @@ export default function ResultPanel({
   );
   const [exportStatus, setExportStatus] = useState('');
   const [resolvedWarningIds, setResolvedWarningIds] = useState([]);
+  const [l1FocusGuide, setL1FocusGuide] = useState(buildEmptyL1FocusGuide());
 
   const {
     actionPack,
@@ -94,6 +108,7 @@ export default function ResultPanel({
     contextOutputs: deepClone(contextOutputs),
     exportStatus,
     resolvedWarningIds: deepClone(resolvedWarningIds),
+    l1FocusGuide: deepClone(l1FocusGuide),
     ...buildActionPackSnapshot(),
   }), [
     activeLayer,
@@ -104,6 +119,7 @@ export default function ResultPanel({
     hypothesis,
     hypothesisConfirmed,
     hypothesisConfirmedStamp,
+    l1FocusGuide,
     logicMap,
     permissionGuardEnabled,
     resolvedWarningIds,
@@ -131,6 +147,7 @@ export default function ResultPanel({
       }));
     setExportStatus(toText(safe.exportStatus));
     setResolvedWarningIds(Array.isArray(safe.resolvedWarningIds) ? deepClone(safe.resolvedWarningIds) : []);
+    setL1FocusGuide(isObject(safe.l1FocusGuide) ? deepClone(safe.l1FocusGuide) : buildEmptyL1FocusGuide());
     restoreActionPackSnapshot(safe);
   }, [devSpec, masterPrompt, nondevSpec, restoreActionPackSnapshot]);
 
@@ -172,6 +189,7 @@ export default function ResultPanel({
     }));
     setExportStatus('');
     setResolvedWarningIds([]);
+    setL1FocusGuide(buildEmptyL1FocusGuide());
     resetActionPackState();
     resetCtaHistory();
     setActiveLayer('L1');
@@ -244,6 +262,63 @@ export default function ResultPanel({
     [unresolvedWarnings],
   );
 
+  const getUrgencyFromWarning = (warning) => {
+    const score = Number(warning?.score);
+    if (warning?.severity === 'critical' || score >= 90) return 'red';
+    if (warning?.severity === 'high' || score >= 75) return 'orange';
+    return 'yellow';
+  };
+
+  const inferL1TargetFields = (warning) => {
+    const safeWarning = isObject(warning) ? warning : {};
+    const warningId = toText(safeWarning.id);
+    const detailText = toText(safeWarning.detail);
+
+    if (warningId === 'intent-unconfirmed') return [...INTENT_FIELD_IDS];
+    if (warningId === 'intent-low-confidence') {
+      return l1Intelligence.lowConfidenceFields.length
+        ? l1Intelligence.lowConfidenceFields
+        : ['who', 'what', 'success'];
+    }
+    if (warningId === 'intent-mismatch') return ['what', 'why'];
+
+    const fields = new Set();
+    if (/(누가|대상|사용자|역할|고객|관리자|운영자|담당)/.test(detailText)) fields.add('who');
+    if (/(언제|시점|주기|시간|빈도|실시간|매일|주간|월간|직후|발생\s*시)/.test(detailText)) fields.add('when');
+    if (/(무엇|기능|동작|요구|입력|출력|규칙|유효성|검사|flow|데이터)/i.test(detailText)) fields.add('what');
+    if (/(왜|이유|목적|문제|가치|개선|필요)/.test(detailText)) fields.add('why');
+    if (/(성공|기준|지표|kpi|완료율|오류율|시간|측정)/i.test(detailText)) fields.add('success');
+
+    if (fields.size === 0) {
+      if (safeWarning.domain === 'coherence') return ['what', 'why'];
+      return ['what', 'success'];
+    }
+    return [...fields];
+  };
+
+  const buildL1FocusGuideFromWarning = (warning) => {
+    const safeWarning = isObject(warning) ? warning : {};
+    const targetFields = inferL1TargetFields(safeWarning);
+    const urgency = getUrgencyFromWarning(safeWarning);
+    const urgencyMeta = {
+      red: '즉시 수정 필요',
+      orange: '우선 수정 권장',
+      yellow: '검토 필요',
+    };
+    return {
+      active: true,
+      warningId: toText(safeWarning.id),
+      warningTitle: toText(safeWarning.title, 'L4 경고'),
+      urgency,
+      targetFields,
+      message: `${toText(safeWarning.title, 'L4 경고')}에서 이동했습니다. 긴급도: ${urgencyMeta[urgency]}. 강조된 필드를 먼저 수정하세요.`,
+    };
+  };
+
+  const clearL1FocusGuide = () => {
+    setL1FocusGuide(buildEmptyL1FocusGuide());
+  };
+
   // 6) Action handlers (CTA + warning operations)
   const markWarningResolved = (warningId) => {
     setResolvedWarningIds((prev) => (prev.includes(warningId) ? prev : [...prev, warningId]));
@@ -257,6 +332,7 @@ export default function ResultPanel({
       mutate: () => {
         setHypothesisConfirmed(true);
         setHypothesisConfirmedStamp(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
+        clearL1FocusGuide();
         markWarningResolved('intent-unconfirmed');
       },
     });
@@ -274,6 +350,13 @@ export default function ResultPanel({
     setHypothesis((prev) => ({ ...prev, [field]: value }));
     setHypothesisConfirmed(false);
     setHypothesisConfirmedStamp('');
+    setL1FocusGuide((prev) => {
+      if (!prev.active || !prev.targetFields.includes(field)) return prev;
+      const remaining = prev.targetFields.filter((item) => item !== field);
+      return remaining.length
+        ? { ...prev, targetFields: remaining }
+        : buildEmptyL1FocusGuide();
+    });
     setResolvedWarningIds((prev) => prev.filter((id) => id !== 'intent-unconfirmed' && id !== 'intent-low-confidence'));
   };
 
@@ -289,6 +372,7 @@ export default function ResultPanel({
         }));
         setHypothesisConfirmed(false);
         setHypothesisConfirmedStamp('');
+        clearL1FocusGuide();
         setResolvedWarningIds((prev) => prev.filter((id) => id !== 'intent-unconfirmed' && id !== 'intent-low-confidence'));
       },
     });
@@ -429,12 +513,20 @@ export default function ResultPanel({
 
   const handleWarningAction = (warningId, actionId) => {
     if (actionId === 'go-l1') {
+      const targetWarning = warnings.find((warning) => warning.id === warningId);
       runCtaAction({
         layerId: 'L4',
         actionId: 'go-l1',
         label: 'L1 열기',
         meta: { warningId },
-        mutate: () => setActiveLayer('L1'),
+        mutate: () => {
+          setActiveLayer('L1');
+          if (targetWarning) {
+            setL1FocusGuide(buildL1FocusGuideFromWarning(targetWarning));
+          } else {
+            clearL1FocusGuide();
+          }
+        },
       });
       return;
     }
@@ -525,47 +617,62 @@ export default function ResultPanel({
 
   // 7) Status gating + render
   if (status === 'idle') {
-    return <p>Submit a requirement to generate specs.</p>;
+    return (
+      <section className="panel status-only">
+        <p>요구사항을 입력하면 스펙 생성을 시작합니다.</p>
+      </section>
+    );
   }
 
   if (status === 'processing') {
-    return <p>Generating spec...</p>;
+    return (
+      <section className="panel status-only">
+        <p>스펙 생성 중...</p>
+      </section>
+    );
   }
 
   if (status === 'error') {
-    return <p>Error: {errorMessage || 'Unknown error'}</p>;
+    return (
+      <section className="panel status-only">
+        <p>오류: {errorMessage || '알 수 없는 오류'}</p>
+      </section>
+    );
   }
 
   return (
-    <section style={{ marginTop: 16 }}>
-      <div style={{ marginBottom: 10 }}>
-        <strong>Model:</strong> {activeModel}
+    <section className="result-panel">
+      <div className="status-bar">
+        <strong>모델:</strong> {activeModel}
         {' | '}
-        <strong>Hybrid stack:</strong> {hybridStackGuideStatus}
-        <button type="button" onClick={onRefreshHybrid} style={{ marginLeft: 8 }}>
-          Refresh Hybrid Guide
+        <strong>하이브리드 스택:</strong> {hybridStackGuideStatus}
+        <button type="button" className="btn btn-ghost" onClick={onRefreshHybrid}>
+          하이브리드 가이드 새로고침
         </button>
       </div>
 
-      <section style={{ border: '1px solid #ddd', borderRadius: 10, padding: 12 }}>
+      <section className="panel layer-panel">
         <h2>Layer Tab (AX)</h2>
-        <p>탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
+        <p className="layer-panel-intro">탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div className="layer-tabs">
           {AX_LAYER_TABS.map((tab) => (
             <LayerTabButton key={tab.id} tab={tab} activeLayer={activeLayer} onSelect={setActiveLayer} />
           ))}
         </div>
 
+        <div className="layer-content">
         {activeLayer === 'L1' && (
           <L1HypothesisEditor
             hypothesis={hypothesis}
             onChangeHypothesis={handleChangeHypothesis}
             l1Intelligence={l1Intelligence}
+            l1FocusGuide={l1FocusGuide}
             hypothesisConfirmed={hypothesisConfirmed}
             hypothesisConfirmedStamp={hypothesisConfirmedStamp}
             onConfirmHypothesis={confirmHypothesis}
             onApplySuggestedHypothesis={applySuggestedHypothesis}
+            onClearL1FocusGuide={clearL1FocusGuide}
           />
         )}
         {activeLayer === 'L2' && (
@@ -608,6 +715,7 @@ export default function ResultPanel({
             onExportActionPack={exportActionPack}
           />
         )}
+        </div>
       </section>
 
       <CtaHistoryPanel
@@ -615,7 +723,7 @@ export default function ResultPanel({
         onRollback={rollbackToHistory}
       />
 
-      <details style={{ marginTop: 12 }}>
+      <details className="legacy-details">
         <summary>기존 산출물 보기</summary>
         <TextBlock title="Non-dev Spec" value={nondevSpec} />
         <TextBlock title="Dev Spec" value={devSpec} />

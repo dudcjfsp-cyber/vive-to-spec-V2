@@ -178,7 +178,7 @@ export function buildWarnings({
       .join(', ');
     items.push(createScoredWarning({
       id: 'intent-low-confidence',
-      title: 'Intent Extractor Confidence',
+      title: '의도 추출 신뢰도 경고',
       detail: `의도 추론 신뢰도(${l1Intelligence.overallConfidence})가 낮습니다. 우선 보강 필드: ${lowFields || '-'}`,
       actions: [
         { id: 'apply-suggested-hypothesis', label: '추천 가설 적용' },

@@ -9,9 +9,9 @@ import {
 
 export function TextBlock({ title, value }) {
   return (
-    <section>
+    <section className="text-block">
       <h3>{title}</h3>
-      <pre style={{ whiteSpace: 'pre-wrap' }}>{value || '-'}</pre>
+      <pre className="mono-block">{value || '-'}</pre>
     </section>
   );
 }
@@ -22,13 +22,7 @@ export function LayerTabButton({ tab, activeLayer, onSelect }) {
     <button
       type="button"
       onClick={() => onSelect(tab.id)}
-      style={{
-        border: isActive ? '2px solid #0b57d0' : '1px solid #bbb',
-        background: isActive ? '#e9f1ff' : '#fff',
-        borderRadius: 8,
-        padding: '8px 12px',
-        cursor: 'pointer',
-      }}
+      className={`tab-btn ${isActive ? 'is-active' : ''}`}
     >
       {tab.label}
     </button>
@@ -39,10 +33,12 @@ export function L1HypothesisEditor({
   hypothesis,
   onChangeHypothesis,
   l1Intelligence,
+  l1FocusGuide,
   hypothesisConfirmed,
   hypothesisConfirmedStamp,
   onConfirmHypothesis,
   onApplySuggestedHypothesis,
+  onClearL1FocusGuide,
 }) {
   const fields = [
     { id: 'who', label: '누가' },
@@ -51,17 +47,56 @@ export function L1HypothesisEditor({
     { id: 'why', label: '왜' },
     { id: 'success', label: '성공기준' },
   ];
+  const fieldLabelById = fields.reduce((acc, field) => {
+    acc[field.id] = field.label;
+    return acc;
+  }, {});
 
   return (
     <section>
-      <h3>L1 Intent Extractor</h3>
+      <h3>L1 의도 추출기</h3>
       <p>AI 가설을 수정/확정 중심으로 다듬고, 신뢰도 낮은 항목부터 질문으로 보완합니다.</p>
-      <p style={{ fontSize: 12, marginTop: 0 }}>
+      <p className="small-muted">
         추론 신뢰도: <strong>{l1Intelligence.overallConfidence}</strong>/100 ({l1Intelligence.confidenceBand})
       </p>
+
+      <div className="urgency-legend">
+        <span className="urgency-chip urgency-red">빨강: 즉시 수정 필요</span>
+        <span className="urgency-chip urgency-orange">주황: 우선 수정 권장</span>
+        <span className="urgency-chip urgency-yellow">노랑: 검토 필요</span>
+      </div>
+
+      {l1FocusGuide?.active && (
+        <div className={`attention-banner urgency-${l1FocusGuide.urgency}`}>
+          <div className="attention-banner-head">
+            <strong>L4 이동 수정 안내</strong>
+            <button type="button" className="btn btn-ghost btn-mini" onClick={onClearL1FocusGuide}>
+              표시 해제
+            </button>
+          </div>
+          <p>{l1FocusGuide.message}</p>
+          <div className="attention-targets">
+            {l1FocusGuide.targetFields.map((fieldId) => (
+              <span key={fieldId} className={`urgency-chip urgency-${l1FocusGuide.urgency}`}>
+                {fieldLabelById[fieldId] || fieldId}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="field-grid">
       {fields.map((field) => (
-        <div key={field.id} style={{ marginBottom: 8 }}>
-          <label htmlFor={`l1-${field.id}`} style={{ display: 'block', fontWeight: 600 }}>
+        <div
+          key={field.id}
+          className={l1FocusGuide?.active && l1FocusGuide.targetFields.includes(field.id)
+            ? `field-attention field-attention-${l1FocusGuide.urgency}`
+            : ''}
+        >
+          <label
+            htmlFor={`l1-${field.id}`}
+            className={`small-muted ${l1FocusGuide?.active && l1FocusGuide.targetFields.includes(field.id) ? 'field-attention-label' : ''}`}
+          >
             {field.label} ({l1Intelligence.fieldConfidence[field.id] || 0})
           </label>
           <input
@@ -69,25 +104,25 @@ export function L1HypothesisEditor({
             type="text"
             value={hypothesis[field.id]}
             onChange={(event) => onChangeHypothesis(field.id, event.target.value)}
-            style={{ width: '100%' }}
           />
         </div>
       ))}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={onApplySuggestedHypothesis}>추천 가설 적용</button>
-        <button type="button" onClick={onConfirmHypothesis}>가설 확정</button>
+      </div>
+      <div className="stack-actions">
+        <button type="button" className="btn btn-secondary" onClick={onApplySuggestedHypothesis}>추천 가설 적용</button>
+        <button type="button" className="btn btn-primary" onClick={onConfirmHypothesis}>가설 확정</button>
       </div>
       {l1Intelligence.questions.length > 0 && (
-        <div style={{ marginTop: 10 }}>
+        <div>
           <strong>우선 확인 질문</strong>
-          <ol style={{ marginTop: 6 }}>
+          <ol>
             {l1Intelligence.questions.map((question, idx) => (
               <li key={`${question}-${idx}`}>{question}</li>
             ))}
           </ol>
         </div>
       )}
-      <p style={{ fontSize: 12, marginTop: 8 }}>
+      <p className="small-muted">
         상태: {hypothesisConfirmed ? `확정됨 (${hypothesisConfirmedStamp})` : '미확정'}
       </p>
     </section>
@@ -111,17 +146,17 @@ export function L2LogicMapper({
 
   return (
     <section>
-      <h3>L2 Logic Mapper</h3>
+      <h3>L2 로직 매퍼</h3>
       <p>한 축을 수정하면 다른 축 영향도를 함께 안내하고, 연동 반영으로 동기화합니다.</p>
-      <p style={{ fontSize: 12, marginTop: 0 }}>
+      <p className="small-muted">
         합성 점수: <strong>{l2Intelligence.overallScore}</strong>/100
         {' | '}
         정합성: {l2Intelligence.alignmentScore}
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+      <div className="axis-grid">
         {axes.map((axis) => (
           <div key={axis.id}>
-            <label htmlFor={`l2-${axis.id}`} style={{ display: 'block', fontWeight: 600 }}>
+            <label htmlFor={`l2-${axis.id}`} className="small-muted">
               {axis.label} ({l2Intelligence.coverageByAxis[axis.id] || 0})
             </label>
             <textarea
@@ -129,24 +164,23 @@ export function L2LogicMapper({
               rows={8}
               value={logicMap[axis.id]}
               onChange={(event) => onChangeLogicAxis(axis.id, event.target.value)}
-              style={{ width: '100%' }}
             />
           </div>
         ))}
       </div>
-      <p style={{ fontSize: 12 }}>
+      <p className="small-muted">
         {changedAxis
           ? `변경 감지 축: ${changedAxis.toUpperCase()} | 연동 제안: ${syncHint}`
           : '축 변경을 감지하면 연동 제안을 표시합니다.'}
       </p>
       {l2Intelligence.syncSuggestions.length > 0 && (
-        <ul style={{ marginTop: 6 }}>
+        <ul>
           {l2Intelligence.syncSuggestions.map((item, idx) => (
             <li key={`${item}-${idx}`}>{item}</li>
           ))}
         </ul>
       )}
-      <button type="button" onClick={onApplySync}>연동 반영</button>
+      <button type="button" className="btn btn-primary" onClick={onApplySync}>연동 반영</button>
     </section>
   );
 }
@@ -164,18 +198,18 @@ export function L3ContextOptimizer({
 
   return (
     <section>
-      <h3>L3 Context Optimizer</h3>
+      <h3>L3 컨텍스트 최적화</h3>
       <p>동일 의미를 수신자별 포맷으로 인코딩해 내보냅니다.</p>
       {targets.map((target) => (
-        <div key={target.id} style={{ marginBottom: 12 }}>
+        <div key={target.id}>
           <strong>{target.title}</strong>
-          <pre style={{ whiteSpace: 'pre-wrap', background: '#fafafa', padding: 8, border: '1px solid #e5e5e5' }}>
+          <pre className="mono-block">
             {contextOutputs[target.id] || '-'}
           </pre>
         </div>
       ))}
-      <button type="button" onClick={onExportContext}>대상별 내보내기</button>
-      <p style={{ fontSize: 12, marginTop: 8 }}>{exportStatus || '아직 내보내기 전'}</p>
+      <button type="button" className="btn btn-primary" onClick={onExportContext}>대상별 내보내기</button>
+      <p className="small-muted">{exportStatus || '아직 내보내기 전'}</p>
     </section>
   );
 }
@@ -192,35 +226,36 @@ export function L4IntegritySimulator({
 
   return (
     <section>
-      <h3>L4 Integrity Simulator</h3>
+      <h3>L4 무결성 시뮬레이터</h3>
       <p>
         상태: <strong>{gateMeta.label}</strong> | 우선 경고 {topWarnings.length}개 노출 (점수 상위)
       </p>
-      <p style={{ fontSize: 12 }}>{gateMeta.message}</p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <span style={{ border: '1px solid #ddd', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
-          Data-Flow: {integritySignals.dataFlow}
+      <p className="small-muted">{gateMeta.message}</p>
+      <div className="signal-pills">
+        <span className="pill">
+          데이터 흐름: {integritySignals.dataFlow}
         </span>
-        <span style={{ border: '1px solid #ddd', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
-          Permission: {integritySignals.permission}
+        <span className="pill">
+          권한: {integritySignals.permission}
         </span>
-        <span style={{ border: '1px solid #ddd', borderRadius: 999, padding: '4px 8px', fontSize: 12 }}>
-          Coherence: {integritySignals.coherence}
+        <span className="pill">
+          정합성: {integritySignals.coherence}
         </span>
       </div>
       {topWarnings.length === 0 && <p>충돌 없음. L5로 진행 가능합니다.</p>}
       {topWarnings.map((warning) => (
-        <article key={warning.id} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 10, marginBottom: 10 }}>
-          <strong>{warning.title}</strong>
-          <p style={{ fontSize: 12, margin: '6px 0' }}>
+        <article key={warning.id} className="warning-card">
+          <strong className="warning-title">{warning.title}</strong>
+          <p className="warning-meta">
             {warning.severity.toUpperCase()} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | score {warning.score}
           </p>
-          <p style={{ margin: '6px 0' }}>{warning.detail}</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <p>{warning.detail}</p>
+          <div className="stack-actions">
             {warning.actions.map((action) => (
               <button
                 key={`${warning.id}-${action.id}`}
                 type="button"
+                className="btn btn-ghost"
                 onClick={() => onWarningAction(warning.id, action.id)}
               >
                 {action.label}
@@ -241,7 +276,7 @@ export function L4IntegritySimulator({
           </ul>
         </details>
       )}
-      <button type="button" onClick={onApplyAutoFixes} disabled={topWarnings.length === 0}>
+      <button type="button" className="btn btn-primary" onClick={onApplyAutoFixes} disabled={topWarnings.length === 0}>
         자동 보정 제안 적용
       </button>
     </section>
@@ -263,10 +298,10 @@ export function L5ActionBinder({
 
   return (
     <section>
-      <h3>L5 Action Binder</h3>
+      <h3>L5 실행 바인더</h3>
       <p>L4 게이트 상태를 통과해야 실행 팩을 생성할 수 있습니다.</p>
-      <div style={{ marginBottom: 10 }}>
-        <label htmlFor="l5-action-pack-preset" style={{ display: 'block', fontWeight: 600 }}>
+      <div className="form-group">
+        <label htmlFor="l5-action-pack-preset" className="small-muted">
           내보내기 프리셋
         </label>
         <select
@@ -280,26 +315,26 @@ export function L5ActionBinder({
             </option>
           ))}
         </select>
-        <p style={{ fontSize: 12, marginBottom: 0 }}>{toText(currentPreset?.description, '-')}</p>
+        <p className="small-muted">{toText(currentPreset?.description, '-')}</p>
       </div>
       <ul>
         {todayActions.length
           ? todayActions.map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)
           : <li>오늘 할 일이 아직 생성되지 않았습니다.</li>}
       </ul>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
+      <div className="stack-actions">
+        <button type="button" className="btn btn-primary" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
           실행 팩 생성
         </button>
-        <button type="button" onClick={onExportActionPack} disabled={!actionPack}>
+        <button type="button" className="btn btn-secondary" onClick={onExportActionPack} disabled={!actionPack}>
           실행 팩 복사
         </button>
       </div>
-      {gateStatus === 'blocked' && <p style={{ fontSize: 12 }}>L4 상태가 blocked라서 실행 CTA가 비활성화되었습니다.</p>}
-      {gateStatus === 'review' && <p style={{ fontSize: 12 }}>경고가 남아 있어 review 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
-      {actionPackExportStatus && <p style={{ fontSize: 12 }}>{actionPackExportStatus}</p>}
+      {gateStatus === 'blocked' && <p className="small-muted">L4 상태가 blocked라서 실행 CTA가 비활성화되었습니다.</p>}
+      {gateStatus === 'review' && <p className="small-muted">경고가 남아 있어 review 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
+      {actionPackExportStatus && <p className="small-muted">{actionPackExportStatus}</p>}
       {actionPack && (
-        <pre style={{ whiteSpace: 'pre-wrap', background: '#fafafa', padding: 8, border: '1px solid #e5e5e5', marginTop: 10 }}>
+        <pre className="mono-block">
           {actionPack}
         </pre>
       )}
@@ -314,33 +349,34 @@ export function CtaHistoryPanel({
   const visibleEntries = entries.slice(0, 12);
 
   return (
-    <section style={{ marginTop: 12, border: '1px solid #ddd', borderRadius: 10, padding: 12 }}>
+    <section className="panel history-panel">
       <h3>CTA 실행 이력</h3>
-      <p style={{ fontSize: 12, marginTop: 0 }}>
+      <p className="small-muted">
         최신 {visibleEntries.length}건 표시. 버튼 한 번으로 해당 액션 이전 상태로 되돌립니다.
       </p>
-      {visibleEntries.length === 0 && <p style={{ marginBottom: 0 }}>기록된 CTA 이력이 없습니다.</p>}
+      {visibleEntries.length === 0 && <p>기록된 CTA 이력이 없습니다.</p>}
       {visibleEntries.length > 0 && (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8 }}>
+        <ul className="history-list">
           {visibleEntries.map((entry) => (
-            <li key={entry.id} style={{ border: '1px solid #e6e6e6', borderRadius: 8, padding: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <li key={entry.id} className="history-item">
+              <div className="history-row">
                 <div>
                   <strong>{entry.label}</strong>
-                  <div style={{ fontSize: 12 }}>
+                  <div className="history-meta">
                     {entry.layerId} | {entry.actionId} | {formatLocalTime(entry.ts)}
                   </div>
-                  <div style={{ fontSize: 12, color: entry.status === 'failed' ? '#b00020' : '#444' }}>
+                  <div className={`history-meta history-status ${entry.status === 'failed' ? 'error' : ''}`}>
                     상태: {toText(entry.status, 'done')}
                     {entry.error ? ` | 오류: ${entry.error}` : ''}
                   </div>
                   {formatHistoryMeta(entry.meta) && (
-                    <div style={{ fontSize: 12, color: '#444' }}>{formatHistoryMeta(entry.meta)}</div>
+                    <div className="history-meta">{formatHistoryMeta(entry.meta)}</div>
                   )}
                 </div>
                 <div>
                   <button
                     type="button"
+                    className="btn btn-ghost"
                     onClick={() => onRollback(entry.id)}
                     disabled={!isObject(entry.snapshotBefore)}
                   >

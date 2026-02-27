@@ -149,7 +149,7 @@ export function useAppController() {
     if (!vibe.trim()) return;
     if (!apiKey) {
       setIsSettingsOpen(true);
-      setErrorMessage('API key is required.');
+      setErrorMessage('API 키가 필요합니다.');
       return;
     }
 
@@ -158,7 +158,7 @@ export function useAppController() {
       clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
       setApiKey('');
       setIsSettingsOpen(true);
-      setErrorMessage('API key expired. Re-enter your key.');
+      setErrorMessage('API 키가 만료되었습니다. 다시 입력해 주세요.');
       setActiveModel('OFFLINE');
       return;
     }
@@ -220,7 +220,7 @@ export function useAppController() {
       setActiveModel('LINK FAILURE');
       setHybridStackGuide(null);
       setHybridStackGuideStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : 'Unknown transmutation error.');
+      setErrorMessage(error instanceof Error ? error.message : '알 수 없는 변환 오류입니다.');
       shadowWriteSpecState({
         type: 'transmute_error',
         currentNodeId: 'transmute_error',

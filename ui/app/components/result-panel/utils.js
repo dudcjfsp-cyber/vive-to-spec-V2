@@ -55,8 +55,8 @@ export function formatHistoryMeta(meta) {
 }
 
 export function toErrorMessage(error) {
-  if (error instanceof Error) return toText(error.message, 'Unknown error');
-  return toText(String(error), 'Unknown error');
+  if (error instanceof Error) return toText(error.message, '알 수 없는 오류');
+  return toText(String(error), '알 수 없는 오류');
 }
 
 export function isPromiseLike(value) {
