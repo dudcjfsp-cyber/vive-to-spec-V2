@@ -310,11 +310,10 @@ export function useAppController() {
     },
     derived: {
       providerOptions,
+      standardOutput: result?.standard_output || result?.표준_출력 || null,
       nondevSpec: result?.artifacts?.nondev_spec_md || '',
       devSpec: result?.artifacts?.dev_spec_md || '',
       masterPrompt: result?.artifacts?.master_prompt || '',
-      canRun: Boolean(vibe.trim() && apiKey),
-      isBusy: status === 'processing',
     },
     actions: {
       setVibe,
@@ -329,4 +328,3 @@ export function useAppController() {
     },
   };
 }
-

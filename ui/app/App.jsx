@@ -48,6 +48,8 @@ export default function App() {
         errorMessage={state.errorMessage}
         activeModel={state.activeModel}
         hybridStackGuideStatus={state.hybridStackGuideStatus}
+        vibe={state.vibe}
+        standardOutput={derived.standardOutput}
         nondevSpec={derived.nondevSpec}
         devSpec={derived.devSpec}
         masterPrompt={derived.masterPrompt}
@@ -56,4 +58,3 @@ export default function App() {
     </main>
   );
 }
-
