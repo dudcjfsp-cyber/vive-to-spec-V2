@@ -22,6 +22,7 @@ import {
   getGateStatusFromWarnings,
   sortWarningsByPriority,
 } from './result-panel/integrity';
+import { buildL1FocusGuideFromWarning } from './result-panel/focus-guide';
 import {
   CtaHistoryPanel,
   L1HypothesisEditor,
@@ -35,8 +36,6 @@ import {
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
 import { useCtaHistory } from './result-panel/hooks/useCtaHistory.js';
 
-const INTENT_FIELD_IDS = ['who', 'when', 'what', 'why', 'success'];
-
 function buildEmptyL1FocusGuide() {
   return {
     active: false,
@@ -44,7 +43,6 @@ function buildEmptyL1FocusGuide() {
     warningTitle: '',
     urgency: 'yellow',
     targetFields: [],
-    message: '',
   };
 }
 
@@ -262,59 +260,6 @@ export default function ResultPanel({
     [unresolvedWarnings],
   );
 
-  const getUrgencyFromWarning = (warning) => {
-    const score = Number(warning?.score);
-    if (warning?.severity === 'critical' || score >= 90) return 'red';
-    if (warning?.severity === 'high' || score >= 75) return 'orange';
-    return 'yellow';
-  };
-
-  const inferL1TargetFields = (warning) => {
-    const safeWarning = isObject(warning) ? warning : {};
-    const warningId = toText(safeWarning.id);
-    const detailText = toText(safeWarning.detail);
-
-    if (warningId === 'intent-unconfirmed') return [...INTENT_FIELD_IDS];
-    if (warningId === 'intent-low-confidence') {
-      return l1Intelligence.lowConfidenceFields.length
-        ? l1Intelligence.lowConfidenceFields
-        : ['who', 'what', 'success'];
-    }
-    if (warningId === 'intent-mismatch') return ['what', 'why'];
-
-    const fields = new Set();
-    if (/(누가|대상|사용자|역할|고객|관리자|운영자|담당)/.test(detailText)) fields.add('who');
-    if (/(언제|시점|주기|시간|빈도|실시간|매일|주간|월간|직후|발생\s*시)/.test(detailText)) fields.add('when');
-    if (/(무엇|기능|동작|요구|입력|출력|규칙|유효성|검사|flow|데이터)/i.test(detailText)) fields.add('what');
-    if (/(왜|이유|목적|문제|가치|개선|필요)/.test(detailText)) fields.add('why');
-    if (/(성공|기준|지표|kpi|완료율|오류율|시간|측정)/i.test(detailText)) fields.add('success');
-
-    if (fields.size === 0) {
-      if (safeWarning.domain === 'coherence') return ['what', 'why'];
-      return ['what', 'success'];
-    }
-    return [...fields];
-  };
-
-  const buildL1FocusGuideFromWarning = (warning) => {
-    const safeWarning = isObject(warning) ? warning : {};
-    const targetFields = inferL1TargetFields(safeWarning);
-    const urgency = getUrgencyFromWarning(safeWarning);
-    const urgencyMeta = {
-      red: '즉시 수정 필요',
-      orange: '우선 수정 권장',
-      yellow: '검토 필요',
-    };
-    return {
-      active: true,
-      warningId: toText(safeWarning.id),
-      warningTitle: toText(safeWarning.title, 'L4 경고'),
-      urgency,
-      targetFields,
-      message: `${toText(safeWarning.title, 'L4 경고')}에서 이동했습니다. 긴급도: ${urgencyMeta[urgency]}. 강조된 필드를 먼저 수정하세요.`,
-    };
-  };
-
   const clearL1FocusGuide = () => {
     setL1FocusGuide(buildEmptyL1FocusGuide());
   };
@@ -522,7 +467,10 @@ export default function ResultPanel({
         mutate: () => {
           setActiveLayer('L1');
           if (targetWarning) {
-            setL1FocusGuide(buildL1FocusGuideFromWarning(targetWarning));
+            setL1FocusGuide(buildL1FocusGuideFromWarning({
+              warning: targetWarning,
+              l1LowConfidenceFields: l1Intelligence.lowConfidenceFields,
+            }));
           } else {
             clearL1FocusGuide();
           }

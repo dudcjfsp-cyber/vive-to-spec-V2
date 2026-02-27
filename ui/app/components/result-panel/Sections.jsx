@@ -1,5 +1,11 @@
 import React from 'react';
+import { ActionPriorityLegend, PriorityActionList } from '../PriorityActionList';
 import { GATE_STATUS_META, WARNING_DOMAIN_LABEL } from './constants';
+import {
+  buildL1FocusGuideMessage,
+  getUrgencyUiMeta,
+  URGENCY_ORDER,
+} from './focus-guide-ui';
 import {
   formatHistoryMeta,
   formatLocalTime,
@@ -26,6 +32,25 @@ export function LayerTabButton({ tab, activeLayer, onSelect }) {
     >
       {tab.label}
     </button>
+  );
+}
+
+function UrgencyChip({
+  urgency,
+  text,
+  className = '',
+}) {
+  const meta = getUrgencyUiMeta(urgency);
+  const classes = ['urgency-chip', `urgency-${urgency}`, className].filter(Boolean).join(' ');
+  return (
+    <span
+      className={classes}
+      aria-label={`${meta.label} 긴급도. ${meta.action}. 패턴 ${meta.pattern}`}
+    >
+      <span className="urgency-chip-icon" aria-hidden="true">{meta.icon}</span>
+      <span>{text || `${meta.label}: ${meta.action}`}</span>
+      <span className="urgency-chip-pattern" aria-hidden="true">{meta.pattern}</span>
+    </span>
   );
 }
 
@@ -60,26 +85,36 @@ export function L1HypothesisEditor({
         추론 신뢰도: <strong>{l1Intelligence.overallConfidence}</strong>/100 ({l1Intelligence.confidenceBand})
       </p>
 
-      <div className="urgency-legend">
-        <span className="urgency-chip urgency-red">빨강: 즉시 수정 필요</span>
-        <span className="urgency-chip urgency-orange">주황: 우선 수정 권장</span>
-        <span className="urgency-chip urgency-yellow">노랑: 검토 필요</span>
+      <div className="urgency-legend" role="list" aria-label="긴급도 범례">
+        {URGENCY_ORDER.map((urgency) => (
+          <UrgencyChip key={urgency} urgency={urgency} />
+        ))}
       </div>
 
       {l1FocusGuide?.active && (
         <div className={`attention-banner urgency-${l1FocusGuide.urgency}`}>
           <div className="attention-banner-head">
             <strong>L4 이동 수정 안내</strong>
-            <button type="button" className="btn btn-ghost btn-mini" onClick={onClearL1FocusGuide}>
-              표시 해제
-            </button>
+            <div className="attention-banner-actions">
+              <UrgencyChip
+                urgency={l1FocusGuide.urgency}
+                className="is-compact"
+                text={`긴급도 ${getUrgencyUiMeta(l1FocusGuide.urgency).label}`}
+              />
+              <button type="button" className="btn btn-ghost btn-mini" onClick={onClearL1FocusGuide}>
+                표시 해제
+              </button>
+            </div>
           </div>
-          <p>{l1FocusGuide.message}</p>
+          <p>{buildL1FocusGuideMessage(l1FocusGuide)}</p>
           <div className="attention-targets">
             {l1FocusGuide.targetFields.map((fieldId) => (
-              <span key={fieldId} className={`urgency-chip urgency-${l1FocusGuide.urgency}`}>
-                {fieldLabelById[fieldId] || fieldId}
-              </span>
+              <UrgencyChip
+                key={fieldId}
+                urgency={l1FocusGuide.urgency}
+                className="is-compact"
+                text={fieldLabelById[fieldId] || fieldId}
+              />
             ))}
           </div>
         </div>
@@ -317,11 +352,12 @@ export function L5ActionBinder({
         </select>
         <p className="small-muted">{toText(currentPreset?.description, '-')}</p>
       </div>
-      <ul>
-        {todayActions.length
-          ? todayActions.map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)
-          : <li>오늘 할 일이 아직 생성되지 않았습니다.</li>}
-      </ul>
+      <PriorityActionList
+        items={todayActions}
+        maxItems={3}
+        emptyItemText="오늘 할 일이 아직 생성되지 않았습니다."
+      />
+      <ActionPriorityLegend />
       <div className="stack-actions">
         <button type="button" className="btn btn-primary" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
           실행 팩 생성
