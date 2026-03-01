@@ -1,3 +1,9 @@
+import {
+  buildPromptPolicyMeta,
+  buildPromptSections,
+  resolvePromptPolicy,
+} from './promptPolicy.js';
+
 /**
  * llmCore.js 읽기 가이드(비전공자용)
  * -------------------------------------------------------
@@ -1336,14 +1342,18 @@ function normalizeStandardOutput(raw) {
  * 현재 UI가 기대하는 결과 형태로 묶어 반환합니다.
  * (artifacts/layers/glossary + standard_output 동시 제공)
  */
-function normalizeResult(raw, fallbackModel) {
+function normalizeResult(raw, fallbackModel, promptMeta = null) {
   const safe = isObject(raw) ? raw : {};
   const spec = normalizeStandardOutput(safe);
   const rawThinking = isObject(safe.layers?.L1_thinking)
     ? safe.layers.L1_thinking
     : (isObject(safe.L1_thinking) ? safe.L1_thinking : null);
+  const mergedMeta = {
+    ...(isObject(safe.meta) ? safe.meta : {}),
+    ...(isObject(promptMeta) ? promptMeta : {}),
+  };
 
-  return {
+  const result = {
     model: typeof safe.model === 'string' && safe.model.trim() ? safe.model : fallbackModel,
     standard_output: spec,
     [K.STANDARD_OUTPUT]: spec,
@@ -1357,6 +1367,12 @@ function normalizeResult(raw, fallbackModel) {
     },
     glossary: buildCompatibilityGlossary(spec),
   };
+
+  if (Object.keys(mergedMeta).length > 0) {
+    result.meta = mergedMeta;
+  }
+
+  return result;
 }
 
 // -------------------------------------------------------
@@ -1369,19 +1385,83 @@ function normalizeResult(raw, fallbackModel) {
  * - 일반 생성 프롬프트
  * - JSON 오류 복구(retry) 프롬프트
  */
-function buildPrompt(vibe, showThinking, retryPayload = null) {
+function buildLegacyBaselinePrompt(vibe, showThinking) {
+  return `SYSTEM:\n${BASE_SYSTEM_PROMPT}\n\nJSON Schema Shape:\n${JSON_SCHEMA_HINT}\n\nUser vibe:\n${vibe}\n\nRuntime option: showThinking=${showThinking ? 'ON' : 'OFF'}.\nReturn only the fixed schema above.`;
+}
+
+function formatPromptSections(sections) {
+  return sections
+    .map((section) => `${section.label}:\n${section.content}`)
+    .join('\n\n');
+}
+
+function buildPromptEnvelope({
+  vibe = '',
+  showThinking = true,
+  retryPayload = null,
+  persona = '',
+  policyMode = '',
+  promptExperimentId = '',
+} = {}) {
   if (retryPayload) {
-    return `Your previous response was invalid JSON. Fix it now. Return JSON only and strictly follow schema.\nSchema:\n${JSON_SCHEMA_HINT}\nPrevious output:\n${retryPayload}`;
+    return {
+      prompt: `Your previous response was invalid JSON. Fix it now. Return JSON only and strictly follow schema.\nSchema:\n${JSON_SCHEMA_HINT}\nPrevious output:\n${retryPayload}`,
+      meta: null,
+    };
   }
 
-  return `SYSTEM:\n${BASE_SYSTEM_PROMPT}\n\nJSON Schema Shape:\n${JSON_SCHEMA_HINT}\n\nUser vibe:\n${vibe}\n\nRuntime option: showThinking=${showThinking ? 'ON' : 'OFF'}.\nReturn only the fixed schema above.`;
+  const policy = resolvePromptPolicy({ persona, mode: policyMode });
+  if (policy.mode === 'baseline') {
+    return {
+      prompt: buildLegacyBaselinePrompt(vibe, showThinking),
+      meta: buildPromptPolicyMeta({
+        vibe,
+        persona,
+        policy,
+        promptSections: ['role', 'schema', 'user_vibe', 'runtime'],
+        promptExperimentId,
+      }),
+    };
+  }
+
+  const promptSections = buildPromptSections({
+    vibe,
+    schemaHint: JSON_SCHEMA_HINT,
+    baseSystemPrompt: BASE_SYSTEM_PROMPT,
+    policy,
+    showThinking,
+  });
+
+  return {
+    prompt: `${formatPromptSections(promptSections)}\n\nReturn only the fixed schema above.`,
+    meta: buildPromptPolicyMeta({
+      vibe,
+      persona,
+      policy,
+      promptSections,
+      positiveRewriteCount: policy.positiveRewriteCount,
+      promptExperimentId,
+    }),
+  };
+}
+
+export function buildPrompt(options = {}, legacyShowThinking = true, legacyRetryPayload = null) {
+  if (typeof options === 'string') {
+    return buildPromptEnvelope({
+      vibe: options,
+      showThinking: legacyShowThinking,
+      retryPayload: legacyRetryPayload,
+    }).prompt;
+  }
+
+  return buildPromptEnvelope(options).prompt;
 }
 
 /**
  * 모델 1회 호출 후 원문 텍스트를 반환합니다.
  */
-async function generateJson(generateText, vibe, showThinking, retryPayload = null) {
-  const prompt = buildPrompt(vibe, showThinking, retryPayload);
+async function generateJson(generateText, promptOptions) {
+  const prompt = buildPrompt(promptOptions);
   return generateText(prompt);
 }
 
@@ -1389,13 +1469,16 @@ async function generateJson(generateText, vibe, showThinking, retryPayload = nul
  * JSON 파싱 + 1회 자동 복구 루틴입니다.
  * 첫 파싱 실패 시, 실패한 출력물을 다시 모델에 넣어 "고쳐서 다시" 받습니다.
  */
-async function parseJsonWithOneRetry(generateText, vibe, showThinking) {
-  const firstText = await generateJson(generateText, vibe, showThinking);
+async function parseJsonWithOneRetry(generateText, promptOptions) {
+  const firstText = await generateJson(generateText, promptOptions);
 
   try {
     return JSON.parse(extractJsonText(firstText));
   } catch {
-    const repairedText = await generateJson(generateText, vibe, showThinking, firstText);
+    const repairedText = await generateJson(generateText, {
+      ...promptOptions,
+      retryPayload: firstText,
+    });
     return JSON.parse(extractJsonText(repairedText));
   }
 }
@@ -1695,7 +1778,14 @@ async function getOptimalModel(apiKey, preferredModel = '', provider = DEFAULT_P
 export async function transmuteVibeToSpec(
   vibe,
   apiKey,
-  { provider = DEFAULT_PROVIDER, showThinking = true, modelName = '' } = {},
+  {
+    provider = DEFAULT_PROVIDER,
+    showThinking = true,
+    modelName = '',
+    persona = '',
+    promptPolicyMode = '',
+    promptExperimentId = '',
+  } = {},
 ) {
   if (!apiKey) {
     throw new Error('API key is missing.');
@@ -1705,11 +1795,19 @@ export async function transmuteVibeToSpec(
   // modelName 전달 시 우선 사용, 미전달/불일치 시 기존 자동 선택 정책을 사용합니다.
   const selectedModel = await getOptimalModel(apiKey, modelName, normalizedProvider);
   const generateText = (prompt) => generateTextByProvider(normalizedProvider, apiKey, selectedModel, prompt);
+  const promptOptions = {
+    vibe,
+    showThinking,
+    persona,
+    policyMode: promptPolicyMode,
+    promptExperimentId,
+  };
+  const promptMeta = buildPromptEnvelope(promptOptions).meta;
 
   try {
-    const parsed = await parseJsonWithOneRetry(generateText, vibe, showThinking);
+    const parsed = await parseJsonWithOneRetry(generateText, promptOptions);
     return {
-      ...normalizeResult(parsed, selectedModel),
+      ...normalizeResult(parsed, selectedModel, promptMeta),
       provider: normalizedProvider,
     };
   } catch (error) {

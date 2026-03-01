@@ -1,57 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
 import BeginnerWorkspace from './components/BeginnerWorkspace';
-import ControlPanel from './components/ControlPanel';
+import ExperiencedWorkspace from './components/ExperiencedWorkspace';
+import MajorWorkspace from './components/MajorWorkspace';
 import PersonaSelector from './components/PersonaSelector';
-import ResultPanel from './components/ResultPanel';
 import { useAppController } from './hooks/useAppController';
-import { PERSONA_PRESETS, resolvePersonaPreset } from './persona/presets';
+import { PERSONA_PRESETS, resolvePersonaPreset, resolvePersonaRuntimeConfig } from './persona/presets';
 
 const PERSONA_STORAGE_KEY = 'vibe_to_spec_persona';
-
-function renderAdvancedLayout({
-  state,
-  derived,
-  actions,
-}) {
-  return (
-    <div className="layout-grid">
-      <div className="layout-left">
-        <ControlPanel
-          vibe={state.vibe}
-          status={state.status}
-          apiProvider={state.apiProvider}
-          providerOptions={derived.providerOptions}
-          modelOptions={state.modelOptions}
-          selectedModel={state.selectedModel}
-          isModelOptionsLoading={state.isModelOptionsLoading}
-          showThinking={state.showThinking}
-          onVibeChange={actions.setVibe}
-          onProviderChange={actions.setApiProvider}
-          onModelChange={actions.setSelectedModel}
-          onShowThinkingChange={actions.setShowThinking}
-          onOpenSettings={() => actions.setIsSettingsOpen(true)}
-          onTransmute={actions.handleTransmute}
-        />
-      </div>
-
-      <div className="layout-right">
-        <ResultPanel
-          status={state.status}
-          errorMessage={state.errorMessage}
-          activeModel={state.activeModel}
-          hybridStackGuideStatus={state.hybridStackGuideStatus}
-          vibe={state.vibe}
-          standardOutput={derived.standardOutput}
-          nondevSpec={derived.nondevSpec}
-          devSpec={derived.devSpec}
-          masterPrompt={derived.masterPrompt}
-          onRefreshHybrid={actions.handleRefreshHybrid}
-        />
-      </div>
-    </div>
-  );
-}
 
 function renderApiKeyGate({
   state,
@@ -93,19 +49,27 @@ function renderApiKeyGate({
 }
 
 export default function App() {
-  const { state, derived, actions } = useAppController();
   const [personaId, setPersonaId] = useState(() => {
     if (typeof window === 'undefined') return '';
     return window.sessionStorage.getItem(PERSONA_STORAGE_KEY) || '';
   });
   const [isBeginnerAdvancedOpen, setIsBeginnerAdvancedOpen] = useState(false);
-
   const activePersona = useMemo(
     () => resolvePersonaPreset(personaId),
     [personaId],
   );
+  const activePersonaConfig = useMemo(
+    () => resolvePersonaRuntimeConfig(activePersona),
+    [activePersona],
+  );
+  const { state, derived, actions } = useAppController({
+    personaConfig: activePersonaConfig,
+  });
   const hasApiKey = Boolean(state.apiKey);
   const providerLabel = derived.providerOptions.find((item) => item.id === state.apiProvider)?.label || state.apiProvider;
+  const isBeginnerWorkspace = activePersonaConfig.workspaceKind === 'beginner';
+  const advancedWorkspaceVariant = activePersonaConfig.advancedWorkspaceVariant;
+  const activePersonaCapabilities = activePersonaConfig.capabilities;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -116,9 +80,21 @@ export default function App() {
     }
   }, [activePersona]);
 
+  useEffect(() => {
+    if (!isBeginnerWorkspace) {
+      setIsBeginnerAdvancedOpen(false);
+      return;
+    }
+
+    setIsBeginnerAdvancedOpen(Boolean(activePersonaCapabilities.defaultBeginnerAdvancedOpen));
+  }, [
+    activePersonaConfig.id,
+    activePersonaCapabilities.defaultBeginnerAdvancedOpen,
+    isBeginnerWorkspace,
+  ]);
+
   const handleSelectPersona = (nextPersonaId) => {
     setPersonaId(nextPersonaId);
-    setIsBeginnerAdvancedOpen(false);
   };
 
   const handleResetPersona = () => {
@@ -133,7 +109,7 @@ export default function App() {
           <p className="eyebrow">뉴럴 드래프트 콘솔</p>
           <h1>Vibe-to-Spec V2</h1>
           <p className="header-copy">
-            {activePersona?.id === 'beginner'
+            {isBeginnerWorkspace
               ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
               : '아이디어를 실행 가능한 스펙으로 변환하는 AX 계획 코크핏.'}
           </p>
@@ -160,7 +136,7 @@ export default function App() {
         />
       )}
 
-      {hasApiKey && activePersona?.id === 'beginner' && (
+      {hasApiKey && activePersona && isBeginnerWorkspace && (
         <>
           <BeginnerWorkspace
             vibe={state.vibe}
@@ -168,12 +144,15 @@ export default function App() {
             errorMessage={state.errorMessage}
             standardOutput={derived.standardOutput}
             masterPrompt={derived.masterPrompt}
+            promptPolicyMeta={derived.promptPolicyMeta}
             apiProvider={state.apiProvider}
             providerOptions={derived.providerOptions}
             modelOptions={state.modelOptions}
             selectedModel={state.selectedModel}
             isModelOptionsLoading={state.isModelOptionsLoading}
             showThinking={state.showThinking}
+            showPromptPolicyMeta={activePersonaCapabilities.showPromptPolicyMeta}
+            allowAdvancedToggle={activePersonaCapabilities.allowBeginnerAdvancedToggle}
             onVibeChange={actions.setVibe}
             onProviderChange={actions.setApiProvider}
             onModelChange={actions.setSelectedModel}
@@ -185,13 +164,36 @@ export default function App() {
           />
           {isBeginnerAdvancedOpen && (
             <section className="beginner-advanced-wrap">
-              {renderAdvancedLayout({ state, derived, actions })}
+              <ExperiencedWorkspace
+                state={state}
+                derived={derived}
+                actions={actions}
+                personaCapabilities={activePersonaCapabilities}
+                showModeIntro={false}
+                compactMode={false}
+              />
             </section>
           )}
         </>
       )}
 
-      {hasApiKey && activePersona && activePersona.id !== 'beginner' && renderAdvancedLayout({ state, derived, actions })}
+      {hasApiKey && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant === 'major' && (
+        <MajorWorkspace
+          state={state}
+          derived={derived}
+          actions={actions}
+          personaCapabilities={activePersonaCapabilities}
+        />
+      )}
+
+      {hasApiKey && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant !== 'major' && (
+        <ExperiencedWorkspace
+          state={state}
+          derived={derived}
+          actions={actions}
+          personaCapabilities={activePersonaCapabilities}
+        />
+      )}
 
       <ApiKeyModal
         isOpen={state.isSettingsOpen}

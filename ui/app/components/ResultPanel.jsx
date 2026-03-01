@@ -17,6 +17,7 @@ import {
   buildL2Intelligence,
 } from './result-panel/intelligence';
 import {
+  buildWarningSummary,
   buildIntegritySignals,
   buildWarnings,
   getGateStatusFromWarnings,
@@ -33,6 +34,7 @@ import {
   LayerTabButton,
   TextBlock,
 } from './result-panel/Sections';
+import HybridStackGuidePanel from './HybridStackGuidePanel';
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
 import { useCtaHistory } from './result-panel/hooks/useCtaHistory.js';
 
@@ -51,13 +53,34 @@ export default function ResultPanel({
   errorMessage,
   activeModel,
   hybridStackGuideStatus,
+  hybridStackGuide,
   vibe,
   standardOutput,
   nondevSpec,
   devSpec,
   masterPrompt,
+  promptPolicyMeta,
+  personaCapabilities,
   onRefreshHybrid,
 }) {
+  const safeCapabilities = isObject(personaCapabilities) ? personaCapabilities : {};
+  const shouldShowAdvancedPromptPolicyMeta = safeCapabilities.showAdvancedPromptPolicyMeta === true;
+  const shouldShowLayerPanels = safeCapabilities.showLayerPanels !== false;
+  const shouldShowCtaHistory = safeCapabilities.showCtaHistory !== false;
+  const shouldShowLegacyArtifacts = safeCapabilities.showLegacyArtifacts !== false;
+  const shouldShowIntegrityWarningsExpanded = safeCapabilities.showIntegrityWarningsExpanded !== false;
+  const isCompactIntegrityView = !shouldShowIntegrityWarningsExpanded;
+  const promptSections = useMemo(
+    () => toStringArray(promptPolicyMeta?.prompt_sections),
+    [promptPolicyMeta],
+  );
+  const promptPolicyMode = toText(promptPolicyMeta?.prompt_policy_mode, 'baseline');
+  const promptExperimentId = toText(promptPolicyMeta?.prompt_experiment_id, '-');
+  const promptExampleMode = toText(promptPolicyMeta?.example_mode, 'none');
+  const positiveRewriteCount = Number.isFinite(Number(promptPolicyMeta?.positive_rewrite_count))
+    ? Number(promptPolicyMeta?.positive_rewrite_count)
+    : 0;
+
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
   const [hypothesis, setHypothesis] = useState(buildProblemFrame({}));
@@ -255,6 +278,14 @@ export default function ResultPanel({
   );
   const topWarnings = unresolvedWarnings.slice(0, 3);
   const remainingWarnings = unresolvedWarnings.slice(3);
+  const visibleTopWarnings = isCompactIntegrityView ? unresolvedWarnings.slice(0, 2) : topWarnings;
+  const visibleRemainingWarnings = isCompactIntegrityView
+    ? unresolvedWarnings.slice(2)
+    : remainingWarnings;
+  const warningSummary = useMemo(
+    () => buildWarningSummary(unresolvedWarnings),
+    [unresolvedWarnings],
+  );
   const gateStatus = useMemo(
     () => getGateStatusFromWarnings(unresolvedWarnings),
     [unresolvedWarnings],
@@ -389,7 +420,7 @@ export default function ResultPanel({
   const handleExportContext = async () => runCtaAction({
     layerId: 'L3',
     actionId: 'export-context',
-    label: '대상별 내보내기',
+    label: 'AI 코딩 프롬프트 복사',
     mutate: async () => {
       const nextOutputs = buildContextOutputs({
         devSpec,
@@ -400,16 +431,12 @@ export default function ResultPanel({
       });
       setContextOutputs(nextOutputs);
 
-      const exportBody = [
-        '[개발자용]',
-        nextOutputs.dev,
-        '',
-        '[비전공자용]',
-        nextOutputs.nondev,
-        '',
-        '[AI 코딩용]',
-        nextOutputs.aiCoding,
-      ].join('\n');
+      const aiCodingPrompt = toText(nextOutputs.aiCoding);
+
+      if (!aiCodingPrompt) {
+        setExportStatus('복사할 AI 코딩용 실행 프롬프트가 아직 없습니다.');
+        return;
+      }
 
       if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
         setExportStatus('클립보드 미지원 환경입니다. 화면 출력본을 그대로 사용하세요.');
@@ -417,10 +444,10 @@ export default function ResultPanel({
       }
 
       try {
-        await navigator.clipboard.writeText(exportBody);
-        setExportStatus('3개 대상 출력이 클립보드로 내보내졌습니다.');
+        await navigator.clipboard.writeText(aiCodingPrompt);
+        setExportStatus('AI 코딩용 실행 프롬프트를 클립보드에 복사했습니다.');
       } catch {
-        setExportStatus('클립보드 내보내기에 실패했습니다. 화면 출력본을 그대로 사용하세요.');
+        setExportStatus('AI 코딩용 실행 프롬프트 복사에 실패했습니다. 화면 출력본을 그대로 사용하세요.');
       }
     },
   });
@@ -599,84 +626,116 @@ export default function ResultPanel({
         </button>
       </div>
 
-      <section className="panel layer-panel">
-        <h2>Layer Tab (AX)</h2>
-        <p className="layer-panel-intro">탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
+      {(hybridStackGuideStatus !== 'idle' || hybridStackGuide) && (
+        <section className="panel hybrid-guide-wrap">
+          <HybridStackGuidePanel
+            guide={hybridStackGuide}
+            status={hybridStackGuideStatus}
+          />
+        </section>
+      )}
 
-        <div className="layer-tabs">
-          {AX_LAYER_TABS.map((tab) => (
-            <LayerTabButton key={tab.id} tab={tab} activeLayer={activeLayer} onSelect={setActiveLayer} />
-          ))}
-        </div>
+      {shouldShowAdvancedPromptPolicyMeta && (
+        <section className="panel">
+          <h2>Prompt Policy</h2>
+          <div className="signal-pills">
+            <span className="pill">mode: {promptPolicyMode}</span>
+            <span className="pill">experiment: {promptExperimentId}</span>
+            <span className="pill">example: {promptExampleMode}</span>
+            <span className="pill">positive rewrite: {positiveRewriteCount}</span>
+          </div>
+          <p className="small-muted">
+            sections: {promptSections.length > 0 ? promptSections.join(' -> ') : '-'}
+          </p>
+        </section>
+      )}
 
-        <div className="layer-content">
-        {activeLayer === 'L1' && (
-          <L1HypothesisEditor
-            hypothesis={hypothesis}
-            onChangeHypothesis={handleChangeHypothesis}
-            l1Intelligence={l1Intelligence}
-            l1FocusGuide={l1FocusGuide}
-            hypothesisConfirmed={hypothesisConfirmed}
-            hypothesisConfirmedStamp={hypothesisConfirmedStamp}
-            onConfirmHypothesis={confirmHypothesis}
-            onApplySuggestedHypothesis={applySuggestedHypothesis}
-            onClearL1FocusGuide={clearL1FocusGuide}
-          />
-        )}
-        {activeLayer === 'L2' && (
-          <L2LogicMapper
-            logicMap={logicMap}
-            changedAxis={changedAxis}
-            syncHint={syncHint}
-            l2Intelligence={l2Intelligence}
-            onChangeLogicAxis={handleChangeLogicAxis}
-            onApplySync={applySync}
-          />
-        )}
-        {activeLayer === 'L3' && (
-          <L3ContextOptimizer
-            contextOutputs={contextOutputs}
-            exportStatus={exportStatus}
-            onExportContext={handleExportContext}
-          />
-        )}
-        {activeLayer === 'L4' && (
-          <L4IntegritySimulator
-            gateStatus={gateStatus}
-            integritySignals={integritySignals}
-            topWarnings={topWarnings}
-            remainingWarnings={remainingWarnings}
-            onWarningAction={handleWarningAction}
-            onApplyAutoFixes={applyAutoFixes}
-          />
-        )}
-        {activeLayer === 'L5' && (
-          <L5ActionBinder
-            todayActions={todayActions}
-            gateStatus={gateStatus}
-            actionPack={actionPack}
-            actionPackPresetId={actionPackPresetId}
-            actionPackPresets={actionPackPresets}
-            actionPackExportStatus={actionPackExportStatus}
-            onChangeActionPackPreset={changeActionPackPreset}
-            onCreateActionPack={createActionPack}
-            onExportActionPack={exportActionPack}
-          />
-        )}
-        </div>
-      </section>
+      {shouldShowLayerPanels && (
+        <section className="panel layer-panel">
+          <h2>Layer Tab (AX)</h2>
+          <p className="layer-panel-intro">탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
 
-      <CtaHistoryPanel
-        entries={ctaHistory}
-        onRollback={rollbackToHistory}
-      />
+          <div className="layer-tabs">
+            {AX_LAYER_TABS.map((tab) => (
+              <LayerTabButton key={tab.id} tab={tab} activeLayer={activeLayer} onSelect={setActiveLayer} />
+            ))}
+          </div>
 
-      <details className="legacy-details">
-        <summary>기존 산출물 보기</summary>
-        <TextBlock title="Non-dev Spec" value={nondevSpec} />
-        <TextBlock title="Dev Spec" value={devSpec} />
-        <TextBlock title="Master Prompt" value={masterPrompt} />
-      </details>
+          <div className="layer-content">
+          {activeLayer === 'L1' && (
+            <L1HypothesisEditor
+              hypothesis={hypothesis}
+              onChangeHypothesis={handleChangeHypothesis}
+              l1Intelligence={l1Intelligence}
+              l1FocusGuide={l1FocusGuide}
+              hypothesisConfirmed={hypothesisConfirmed}
+              hypothesisConfirmedStamp={hypothesisConfirmedStamp}
+              onConfirmHypothesis={confirmHypothesis}
+              onApplySuggestedHypothesis={applySuggestedHypothesis}
+              onClearL1FocusGuide={clearL1FocusGuide}
+            />
+          )}
+          {activeLayer === 'L2' && (
+            <L2LogicMapper
+              logicMap={logicMap}
+              changedAxis={changedAxis}
+              syncHint={syncHint}
+              l2Intelligence={l2Intelligence}
+              onChangeLogicAxis={handleChangeLogicAxis}
+              onApplySync={applySync}
+            />
+          )}
+          {activeLayer === 'L3' && (
+            <L3ContextOptimizer
+              contextOutputs={contextOutputs}
+              exportStatus={exportStatus}
+              onExportContext={handleExportContext}
+            />
+          )}
+          {activeLayer === 'L4' && (
+            <L4IntegritySimulator
+              gateStatus={gateStatus}
+              integritySignals={integritySignals}
+              topWarnings={visibleTopWarnings}
+              remainingWarnings={visibleRemainingWarnings}
+              warningSummary={warningSummary}
+              compactMode={isCompactIntegrityView}
+              onWarningAction={handleWarningAction}
+              onApplyAutoFixes={applyAutoFixes}
+            />
+          )}
+          {activeLayer === 'L5' && (
+            <L5ActionBinder
+              todayActions={todayActions}
+              gateStatus={gateStatus}
+              actionPack={actionPack}
+              actionPackPresetId={actionPackPresetId}
+              actionPackPresets={actionPackPresets}
+              actionPackExportStatus={actionPackExportStatus}
+              onChangeActionPackPreset={changeActionPackPreset}
+              onCreateActionPack={createActionPack}
+              onExportActionPack={exportActionPack}
+            />
+          )}
+          </div>
+        </section>
+      )}
+
+      {shouldShowCtaHistory && (
+        <CtaHistoryPanel
+          entries={ctaHistory}
+          onRollback={rollbackToHistory}
+        />
+      )}
+
+      {shouldShowLegacyArtifacts && (
+        <details className="legacy-details">
+          <summary>기존 산출물 보기</summary>
+          <TextBlock title="Non-dev Spec" value={nondevSpec} />
+          <TextBlock title="Dev Spec" value={devSpec} />
+          <TextBlock title="Master Prompt" value={masterPrompt} />
+        </details>
+      )}
     </section>
   );
 }

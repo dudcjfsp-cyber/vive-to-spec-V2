@@ -19,12 +19,15 @@ export default function BeginnerWorkspace({
   errorMessage,
   standardOutput,
   masterPrompt,
+  promptPolicyMeta,
   apiProvider,
   providerOptions,
   modelOptions,
   selectedModel,
   isModelOptionsLoading,
   showThinking,
+  showPromptPolicyMeta,
+  allowAdvancedToggle,
   onVibeChange,
   onProviderChange,
   onModelChange,
@@ -59,6 +62,16 @@ export default function BeginnerWorkspace({
   );
   const quickPrompt = quickPromptBundle.prompt;
   const quickPromptMeta = quickPromptBundle.meta;
+  const promptPolicyMode = toText(promptPolicyMeta?.prompt_policy_mode, 'baseline');
+  const promptExampleMode = toText(promptPolicyMeta?.example_mode, 'none');
+  const promptSectionOrder = useMemo(
+    () => toStringArray(promptPolicyMeta?.prompt_sections),
+    [promptPolicyMeta],
+  );
+  const positiveRewriteCount = Number.isFinite(Number(promptPolicyMeta?.positive_rewrite_count))
+    ? Number(promptPolicyMeta?.positive_rewrite_count)
+    : 0;
+  const isPolicyApplied = Boolean(promptPolicyMeta?.policy_applied);
 
   const handleCopyPrompt = async () => {
     if (!quickPrompt) return;
@@ -105,9 +118,11 @@ export default function BeginnerWorkspace({
         <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
           API 키 설정
         </button>
-        <button type="button" className="btn btn-secondary" onClick={onToggleAdvanced}>
-          {isAdvancedOpen ? '고급 보기 닫기' : '고급 보기 열기'}
-        </button>
+        {allowAdvancedToggle && (
+          <button type="button" className="btn btn-secondary" onClick={onToggleAdvanced}>
+            {isAdvancedOpen ? '고급 보기 닫기' : '고급 보기 열기'}
+          </button>
+        )}
       </div>
 
       <details className="beginner-settings">
@@ -177,6 +192,19 @@ export default function BeginnerWorkspace({
 
           <section className="beginner-result-card">
             <h3>바로 실행 프롬프트</h3>
+            {showPromptPolicyMeta && (
+              <div className="prompt-meta-row">
+                <span className={`value-chip ${isPolicyApplied ? 'enhanced' : 'muted'}`}>
+                  엔진 정책 {promptPolicyMode}
+                </span>
+                <span className={`value-chip ${positiveRewriteCount > 0 ? 'pass' : 'muted'}`}>
+                  긍정형 정리 {positiveRewriteCount}
+                </span>
+                <span className="value-chip muted">
+                  예시 {promptExampleMode === 'minimal' ? '최소 허용' : '없음'}
+                </span>
+              </div>
+            )}
             <div className="prompt-meta-row">
               <span className={`value-chip ${quickPromptMeta.nearParaphrase ? 'warning' : 'pass'}`}>
                 원문 유사도 {Math.round(quickPromptMeta.similarity * 100)}%
@@ -187,6 +215,11 @@ export default function BeginnerWorkspace({
                   : '자동 보강 없음'}
               </span>
             </div>
+            {showPromptPolicyMeta && promptSectionOrder.length > 0 && (
+              <p className="small-muted">
+                엔진 섹션: {promptSectionOrder.join(' -> ')}
+              </p>
+            )}
             <pre className="mono-block">{quickPrompt || '생성된 프롬프트가 없습니다.'}</pre>
             <div className="stack-actions">
               <button type="button" className="btn btn-secondary" onClick={handleCopyPrompt} disabled={!quickPrompt}>

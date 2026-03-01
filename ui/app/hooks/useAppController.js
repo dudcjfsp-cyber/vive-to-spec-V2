@@ -18,13 +18,25 @@ import {
   persistProviderToSession,
 } from '../services/sessionStore';
 import { initializeSpecState, shadowWriteSpecState } from '../services/specStateShadow';
+import { resolvePersonaRuntimeConfig } from '../persona/presets';
 
 function getSafeModelName(value, fallback = 'OFFLINE') {
   const text = String(value || '').trim();
   return text ? text.toUpperCase() : fallback;
 }
 
-export function useAppController() {
+function buildPromptExperimentId(personaConfig) {
+  const resolvedPersona = resolvePersonaRuntimeConfig(personaConfig);
+  const scope = String(resolvedPersona.promptExperimentScope || resolvedPersona.id || 'default').trim() || 'default';
+  const mode = String(resolvedPersona.promptPolicyMode || 'baseline').trim() || 'baseline';
+  return `${scope}_${mode}_v1`;
+}
+
+export function useAppController({ personaConfig = null } = {}) {
+  const resolvedPersona = useMemo(
+    () => resolvePersonaRuntimeConfig(personaConfig),
+    [personaConfig],
+  );
   const [vibe, setVibe] = useState('');
   const [status, setStatus] = useState('idle');
   const [result, setResult] = useState(null);
@@ -164,6 +176,9 @@ export function useAppController() {
     }
 
     persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
+    const promptPolicyMode = String(resolvedPersona.promptPolicyMode || 'baseline');
+    const promptExperimentId = buildPromptExperimentId(resolvedPersona);
+    const personaId = String(resolvedPersona.id === 'default' ? '' : resolvedPersona.id);
 
     setStatus('processing');
     setErrorMessage('');
@@ -177,11 +192,14 @@ export function useAppController() {
       answersPatch: {
         source_vibe: vibe.trim(),
         api_provider: apiProvider,
+        persona_id: personaId || 'default',
       },
       payload: {
         provider: apiProvider,
         model: String(selectedModel || ''),
         show_thinking: showThinking,
+        prompt_policy_mode: promptPolicyMode,
+        prompt_experiment_id: promptExperimentId,
       },
     });
 
@@ -190,6 +208,9 @@ export function useAppController() {
         provider: apiProvider,
         showThinking,
         modelName: selectedModel,
+        persona: personaId,
+        promptPolicyMode,
+        promptExperimentId,
       });
       setResult(generated);
       setStatus('success');
@@ -207,10 +228,14 @@ export function useAppController() {
         answersPatch: {
           api_provider: apiProvider,
           last_model: String(generated?.model || selectedModel || ''),
+          last_prompt_policy_mode: String(generated?.meta?.prompt_policy_mode || promptPolicyMode),
         },
         payload: {
           provider: apiProvider,
           model: String(generated?.model || selectedModel || ''),
+          prompt_policy_mode: String(generated?.meta?.prompt_policy_mode || promptPolicyMode),
+          prompt_experiment_id: String(generated?.meta?.prompt_experiment_id || promptExperimentId),
+          example_mode: String(generated?.meta?.example_mode || 'none'),
         },
       });
 
@@ -227,10 +252,12 @@ export function useAppController() {
         payload: {
           provider: apiProvider,
           model: String(selectedModel || ''),
+          prompt_policy_mode: promptPolicyMode,
+          prompt_experiment_id: promptExperimentId,
         },
       });
     }
-  }, [activeModel, apiKey, apiProvider, requestHybridStackGuide, selectedModel, showThinking, vibe]);
+  }, [activeModel, apiKey, apiProvider, requestHybridStackGuide, resolvedPersona, selectedModel, showThinking, vibe]);
 
   useEffect(() => {
     initializeSpecState();
@@ -314,6 +341,7 @@ export function useAppController() {
       nondevSpec: result?.artifacts?.nondev_spec_md || '',
       devSpec: result?.artifacts?.dev_spec_md || '',
       masterPrompt: result?.artifacts?.master_prompt || '',
+      promptPolicyMeta: result?.meta || null,
     },
     actions: {
       setVibe,

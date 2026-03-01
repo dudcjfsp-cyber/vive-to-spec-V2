@@ -81,6 +81,33 @@ export function sortWarningsByPriority(warnings) {
   });
 }
 
+export function buildWarningSummary(unresolvedWarnings) {
+  const safeWarnings = Array.isArray(unresolvedWarnings) ? unresolvedWarnings : [];
+  return safeWarnings.reduce((summary, warning) => {
+    const severity = toText(warning?.severity, 'medium');
+    const domain = toText(warning?.domain, 'completeness');
+    const isHardBlock = warning?.gateImpact === 'hard' && Number(warning?.score) >= GATE_SCORE_THRESHOLD;
+
+    return {
+      total: summary.total + 1,
+      hardBlockCount: summary.hardBlockCount + (isHardBlock ? 1 : 0),
+      bySeverity: {
+        ...summary.bySeverity,
+        [severity]: (summary.bySeverity[severity] || 0) + 1,
+      },
+      byDomain: {
+        ...summary.byDomain,
+        [domain]: (summary.byDomain[domain] || 0) + 1,
+      },
+    };
+  }, {
+    total: 0,
+    hardBlockCount: 0,
+    bySeverity: {},
+    byDomain: {},
+  });
+}
+
 export function getGateStatusFromWarnings(unresolvedWarnings) {
   const hasBlockingWarning = unresolvedWarnings.some(
     (warning) => warning.gateImpact === 'hard' && warning.score >= GATE_SCORE_THRESHOLD,

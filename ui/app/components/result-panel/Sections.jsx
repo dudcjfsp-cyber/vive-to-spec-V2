@@ -225,25 +225,52 @@ export function L3ContextOptimizer({
   exportStatus,
   onExportContext,
 }) {
-  const targets = [
+  const [openTargetId, setOpenTargetId] = React.useState('');
+  const secondaryTargets = [
     { id: 'dev', title: '개발자용 (엄격 타입)' },
     { id: 'nondev', title: '비전공자용 (행동/비유)' },
-    { id: 'aiCoding', title: 'AI 코딩용 (실행 프롬프트)' },
   ];
+  const toggleTarget = (targetId) => {
+    setOpenTargetId((prev) => (prev === targetId ? '' : targetId));
+  };
 
   return (
     <section>
       <h3>L3 컨텍스트 최적화</h3>
-      <p>동일 의미를 수신자별 포맷으로 인코딩해 내보냅니다.</p>
-      {targets.map((target) => (
-        <div key={target.id}>
-          <strong>{target.title}</strong>
-          <pre className="mono-block">
-            {contextOutputs[target.id] || '-'}
-          </pre>
-        </div>
+      <p>AI 코딩용 실행 프롬프트를 우선 확인하고, 필요할 때만 다른 수신자용 포맷을 펼쳐봅니다.</p>
+
+      <div>
+        <strong>AI 코딩용 (실행 프롬프트)</strong>
+        <pre className="mono-block">
+          {contextOutputs.aiCoding || '-'}
+        </pre>
+      </div>
+
+      <div className="stack-actions">
+        {secondaryTargets.map((target) => (
+          <button
+            key={target.id}
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => toggleTarget(target.id)}
+          >
+            {openTargetId === target.id ? `${target.title} 닫기` : `${target.title} 펼치기`}
+          </button>
+        ))}
+      </div>
+
+      {secondaryTargets.map((target) => (
+        openTargetId === target.id ? (
+          <div key={target.id}>
+            <strong>{target.title}</strong>
+            <pre className="mono-block">
+              {contextOutputs[target.id] || '-'}
+            </pre>
+          </div>
+        ) : null
       ))}
-      <button type="button" className="btn btn-primary" onClick={onExportContext}>대상별 내보내기</button>
+
+      <button type="button" className="btn btn-primary" onClick={onExportContext}>AI 코딩 프롬프트 복사</button>
       <p className="small-muted">{exportStatus || '아직 내보내기 전'}</p>
     </section>
   );
@@ -254,16 +281,24 @@ export function L4IntegritySimulator({
   integritySignals,
   topWarnings,
   remainingWarnings,
+  warningSummary,
+  compactMode = false,
   onWarningAction,
   onApplyAutoFixes,
 }) {
   const gateMeta = GATE_STATUS_META[gateStatus] || GATE_STATUS_META.pass;
+  const severitySummary = Object.entries(isObject(warningSummary?.bySeverity) ? warningSummary.bySeverity : {})
+    .map(([severity, count]) => `${severity} ${count}`)
+    .join(' | ');
 
   return (
     <section>
       <h3>L4 무결성 시뮬레이터</h3>
       <p>
-        상태: <strong>{gateMeta.label}</strong> | 우선 경고 {topWarnings.length}개 노출 (점수 상위)
+        상태: <strong>{gateMeta.label}</strong>
+        {' | '}
+        우선 경고 {topWarnings.length}개 노출
+        {compactMode ? ' (요약형)' : ' (점수 상위)'}
       </p>
       <p className="small-muted">{gateMeta.message}</p>
       <div className="signal-pills">
@@ -277,6 +312,31 @@ export function L4IntegritySimulator({
           정합성: {integritySignals.coherence}
         </span>
       </div>
+      {compactMode && (
+        <>
+          <div className="signal-pills">
+            <span className="pill">
+              총 경고: {Number(warningSummary?.total) || 0}
+            </span>
+            <span className="pill">
+              하드 차단: {Number(warningSummary?.hardBlockCount) || 0}
+            </span>
+            <span className="pill">
+              숨김 경고: {remainingWarnings.length}
+            </span>
+          </div>
+          {severitySummary && (
+            <p className="small-muted">
+              심각도 분포: {severitySummary}
+            </p>
+          )}
+          {remainingWarnings.length > 0 && (
+            <p className="small-muted">
+              요약형 모드에서는 상위 경고만 펼쳐서 보여줍니다. 나머지 {remainingWarnings.length}개는 상위 경고 처리 후 확인하세요.
+            </p>
+          )}
+        </>
+      )}
       {topWarnings.length === 0 && <p>충돌 없음. L5로 진행 가능합니다.</p>}
       {topWarnings.map((warning) => (
         <article key={warning.id} className="warning-card">
@@ -299,7 +359,7 @@ export function L4IntegritySimulator({
           </div>
         </article>
       ))}
-      {remainingWarnings.length > 0 && (
+      {!compactMode && remainingWarnings.length > 0 && (
         <details>
           <summary>자세히 보기 ({remainingWarnings.length})</summary>
           <ul>

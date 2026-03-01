@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildWarningSummary,
   buildIntegritySignals,
   buildWarnings,
   createScoredWarning,
@@ -79,6 +80,27 @@ test('getGateStatusFromWarnings returns blocked, review, or pass', () => {
     { id: 'soft', gateImpact: 'soft', score: 68 },
   ]), 'review');
   assert.equal(getGateStatusFromWarnings([]), 'pass');
+});
+
+test('buildWarningSummary returns aggregate counts for compact integrity views', () => {
+  const summary = buildWarningSummary([
+    { id: 'a', gateImpact: 'hard', score: 90, severity: 'critical', domain: 'permission' },
+    { id: 'b', gateImpact: 'soft', score: 64, severity: 'medium', domain: 'completeness' },
+    { id: 'c', gateImpact: 'hard', score: 70, severity: 'high', domain: 'coherence' },
+  ]);
+
+  assert.equal(summary.total, 3);
+  assert.equal(summary.hardBlockCount, 2);
+  assert.deepEqual(summary.bySeverity, {
+    critical: 1,
+    medium: 1,
+    high: 1,
+  });
+  assert.deepEqual(summary.byDomain, {
+    permission: 1,
+    completeness: 1,
+    coherence: 1,
+  });
 });
 
 test('buildIntegritySignals detects data, permission, and coherence failures', () => {

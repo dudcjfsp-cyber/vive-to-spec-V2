@@ -1,68 +1,82 @@
-﻿# Session Handoff (Latest)
+# Session Handoff (Latest)
 
-- Updated: 2026-02-27
+- Updated: 2026-03-01
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
 - HEAD: `9d302e9` (`feat: add persona onboarding and beginner prompt enrichment`)
-- Git status: clean
+- Git status: dirty (modified + untracked files, no commit in this run)
 
 ## Completed In This Run
 
-1. Persona 온보딩 + API 키 선행 게이트
-- API 키 미설정 시 수준 선택 이전에 키 연결 화면 먼저 노출
-- 모드 선택 추가: `바이브코딩 입문자 / 바이브코딩 경험자 / 개발관련 전공자`
-- 모드 선택은 세션 저장 후 헤더에서 재선택 가능
+1. Prompt baseline 보호 테스트 추가
+- `engine/graph/transmuteEngine.test.js`에서 legacy baseline prompt 문자열을 snapshot 수준으로 고정
+- retry JSON 복구 프롬프트도 기존 문자열 유지 검증 추가
 
-2. 입문자 전용 워크스페이스 구축 (최소 입력 -> 빠른 실행)
-- 입력 1개 + `30초 초안 만들기` 중심 화면 추가
-- 결과 카드 단순화: `지금 할 일 3개`, `바로 실행 프롬프트`, `먼저 확인할 점`
-- `고급 보기`로 기존 L1~L5 전체 화면을 필요 시 확장
+2. Prompt policy 모듈 1차 이식
+- `engine/graph/promptPolicy.js` 신설
+- persona/mode 기반 `baseline`, `beginner_zero_shot`, `strict_format` 해석 추가
+- positive-first rewrite 유틸과 prompt section/meta 생성 로직 추가
+- `engine/graph/promptPolicy.test.js`로 순수 함수 테스트 추가
 
-3. L4->L1 포커스 가이드 분리(로직/UI 결합 완화)
-- 도메인 로직: `focus-guide.js` (타겟 필드/긴급도 계산)
-- UI 표현: `focus-guide-ui.js` (아이콘/패턴/문구)
-- 상태에서 표현 문자열 제거(디자인 교체 시 영향 축소)
+3. Transmute 엔진 policy-aware 전환(기준선 fallback 유지)
+- `buildPrompt()`를 object 옵션 기반으로 확장
+- `beginner` 경로는 정책 섹션형 프롬프트 사용
+- `baseline` 경로는 기존 prompt string 완전 유지
+- retry 경로는 정책 우회 후 기존 복구 프롬프트 그대로 유지
+- 응답에 backward-compatible `meta` 필드 추가:
+  - `prompt_policy_mode`
+  - `prompt_experiment_id`
+  - `example_mode`
+  - `positive_rewrite_count`
+  - `prompt_sections`
 
-4. 우선순위 가시화 개선
-- `**텍스트**`가 문자열로 노출되지 않고 실제 bold 렌더링
-- 1~3순위 색상 뱃지 적용(빨강/주황/노랑)
-- 우선도 정의표(색상/의미) 공통 컴포넌트로 추가
-- 적용 위치: 입문자 화면 + L5 실행 바인더
+4. Persona -> 엔진 옵션 연결
+- `ui/app/hooks/useAppController.js`에서 persona 기반 정책 기본값 연결
+- 1차 매핑:
+  - `beginner` -> `beginner_zero_shot`
+  - `experienced`, `major`, 미선택 -> `baseline`
+- `promptExperimentId` 기본값도 함께 생성해 shadow state payload에 기록
+- `ui/app/App.jsx`에서 active persona를 controller에 전달
 
-5. 입문자 가치 강화: 원문 유사도 기반 자동 보강
-- 원문과 실행 프롬프트가 근접 재진술이면 자동 보강 트리거
-- `[필수 구현 요구사항]` 블록 자동 삽입
-- 공통 보강 항목: 역할/입력조건/출력형식/예외처리/완료기준
-- MSDS 주제 보강 항목: CAS/GHS/H·P/응급조치/PPE/누출·화재·폐기
-- UI 배지 추가: `원문 유사도`, `자동 보강 +N`
+5. Beginner UI 메타 표시 연결
+- `ui/app/components/BeginnerWorkspace.jsx`에서 엔진 정책 뱃지 표시
+- 노출 항목:
+  - 엔진 정책 모드
+  - 긍정형 정리 횟수
+  - 예시 사용 모드
+  - prompt section 순서
+- 기존 `beginner-prompt.js` 후처리 보강은 표시용 보조 역할 유지
 
 ## Added / Updated Key Files
 
+- `engine/graph/promptPolicy.js`
+- `engine/graph/promptPolicy.test.js`
+- `engine/graph/transmuteEngine.js`
+- `engine/graph/transmuteEngine.test.js`
+- `ui/app/hooks/useAppController.js`
 - `ui/app/App.jsx`
-- `ui/app/components/PersonaSelector.jsx`
 - `ui/app/components/BeginnerWorkspace.jsx`
-- `ui/app/persona/presets.js`
-- `ui/app/components/PriorityActionList.jsx`
-- `ui/app/components/action-priority.js`
-- `ui/app/components/beginner-prompt.js`
-- `ui/app/components/result-panel/focus-guide.js`
-- `ui/app/components/result-panel/focus-guide-ui.js`
-- `ui/app/components/result-panel/Sections.jsx`
-- `ui/app/components/ResultPanel.jsx`
-- `ui/app/styles.css`
+- `docs/handoff/latest.md`
 
 ## Validation
 
-- `cmd /c npm test` 성공 (22 passed)
+- `cmd /c npm test` 성공 (29 passed)
 - `cmd /c npm run build` 성공
 
 ## Git
 
-- Commit: `9d302e9`
-- Message: `feat: add persona onboarding and beginner prompt enrichment`
-- Pushed to: `origin/main` (`https://github.com/dudcjfsp-cyber/vive-to-spec-V2.git`)
+- Commit: none
+- HEAD unchanged: `9d302e9`
+- Working tree contains local changes for prompt policy migration
 
 ## Session End State
 
-- 개발 서버 종료 완료 (`vite`/`npm run dev` 5173/5174 프로세스 없음)
-- 워킹트리 clean
+- 개발 서버는 실행하지 않음
+- 워킹트리 dirty 유지(사용자 요청대로 미커밋)
+- 참고: `docs/prompt-policy-plan.md`는 현재도 추적 전(untracked) 계획 문서 상태
+
+## Suggested Next Session Focus
+
+1. `promptPolicy` 메타를 `ResultPanel`/L4 integrity 경고까지 확장
+2. `strict_format` escape hatch를 실제 opt-in 경로로 연결
+3. baseline vs beginner prompt diff를 더 명시적으로 검증하는 통합 테스트 추가
