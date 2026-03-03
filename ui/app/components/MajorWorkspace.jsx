@@ -148,8 +148,10 @@ export default function MajorWorkspace({
             masterPrompt={derived.masterPrompt}
             promptPolicyMeta={derived.promptPolicyMeta}
             validationReport={derived.validationReport}
+            clarifyLoop={derived.clarifyLoop}
             personaCapabilities={personaCapabilities}
             onRefreshHybrid={actions.handleRefreshHybrid}
+            onSyncWarningToClarify={actions.syncWarningToClarifyLoop}
           />
         </div>
       </div>

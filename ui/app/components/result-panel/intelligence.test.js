@@ -45,6 +45,23 @@ test('buildL1Intelligence suggests hypotheses and asks clarifying questions on l
   assert.ok(result.suggestedHypothesis.what.length > 0);
 });
 
+test('buildL1Intelligence keeps current values while exposing inferred alternatives', () => {
+  const hypothesis = {
+    who: '사내 안전 관리 담당자 및 연구원',
+    when: '새로운 화학 물질 MSDS 문서를 검토하거나 기존 문서에서 특정 위험 정보를 빠르게 찾아야 할 때',
+    what: '방대한 MSDS PDF 문서에서 핵심 내용(요약)과 특히 중요한 위험 문구를 수동으로 찾아내야 하는 비효율성',
+    why: '수동 검토 시간을 줄이고 안전 사고로 이어질 수 있는 누락을 막기 위해',
+    success: '정보 파악 시간을 50% 이상 단축하고 위험 문구 식별 정확도를 높인다',
+  };
+  const vibeText = 'MSDS PDF 내용을 추출해서 요약하고, 위험 문구만 따로 체크하는 사내 도구를 만들고 싶어. 업로드 파일, 권한, 테스트 기준까지 개발 요청서 형태로 정리해줘.';
+
+  const result = buildL1Intelligence({ vibeText, hypothesis });
+
+  assert.equal(result.suggestedHypothesis.what, hypothesis.what);
+  assert.equal(result.inferredHypothesis.what, 'MSDS PDF 내용을 추출해서 요약하고, 위험 문구만 따로 체크하는 사내 도구를 만들고 싶어');
+  assert.notEqual(result.inferredHypothesis.what, result.suggestedHypothesis.what);
+});
+
 test('buildL2Intelligence adds changed-axis suggestion and keeps strong coverage', () => {
   const result = buildL2Intelligence({
     changedAxis: 'db',

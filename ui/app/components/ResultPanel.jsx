@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AX_LAYER_TABS } from './result-panel/constants';
+import { AX_LAYER_TABS, INTENT_FIELD_ORDER } from './result-panel/constants';
 import {
   appendLine,
   deepClone,
@@ -61,8 +61,10 @@ export default function ResultPanel({
   masterPrompt,
   promptPolicyMeta,
   validationReport,
+  clarifyLoop,
   personaCapabilities,
   onRefreshHybrid,
+  onSyncWarningToClarify,
 }) {
   const safeCapabilities = isObject(personaCapabilities) ? personaCapabilities : {};
   const shouldShowAdvancedPromptPolicyMeta = safeCapabilities.showAdvancedPromptPolicyMeta === true;
@@ -91,6 +93,12 @@ export default function ResultPanel({
     () => toStringArray(validationReport?.suggested_questions).slice(0, 3),
     [validationReport],
   );
+  const manualLoopQuestions = useMemo(
+    () => toStringArray(clarifyLoop?.questions),
+    [clarifyLoop],
+  );
+  const manualLoopQuestionCount = manualLoopQuestions.length;
+  const canSyncToManualLoop = typeof onSyncWarningToClarify === 'function';
 
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
@@ -113,6 +121,8 @@ export default function ResultPanel({
   const [exportStatus, setExportStatus] = useState('');
   const [resolvedWarningIds, setResolvedWarningIds] = useState([]);
   const [l1FocusGuide, setL1FocusGuide] = useState(buildEmptyL1FocusGuide());
+  const [isSuggestedHypothesisPreviewOpen, setIsSuggestedHypothesisPreviewOpen] = useState(false);
+  const [l1SuggestionStatus, setL1SuggestionStatus] = useState('');
 
   const {
     actionPack,
@@ -141,6 +151,8 @@ export default function ResultPanel({
     exportStatus,
     resolvedWarningIds: deepClone(resolvedWarningIds),
     l1FocusGuide: deepClone(l1FocusGuide),
+    isSuggestedHypothesisPreviewOpen,
+    l1SuggestionStatus,
     ...buildActionPackSnapshot(),
   }), [
     activeLayer,
@@ -151,7 +163,9 @@ export default function ResultPanel({
     hypothesis,
     hypothesisConfirmed,
     hypothesisConfirmedStamp,
+    isSuggestedHypothesisPreviewOpen,
     l1FocusGuide,
+    l1SuggestionStatus,
     logicMap,
     permissionGuardEnabled,
     resolvedWarningIds,
@@ -180,6 +194,8 @@ export default function ResultPanel({
     setExportStatus(toText(safe.exportStatus));
     setResolvedWarningIds(Array.isArray(safe.resolvedWarningIds) ? deepClone(safe.resolvedWarningIds) : []);
     setL1FocusGuide(isObject(safe.l1FocusGuide) ? deepClone(safe.l1FocusGuide) : buildEmptyL1FocusGuide());
+    setIsSuggestedHypothesisPreviewOpen(Boolean(safe.isSuggestedHypothesisPreviewOpen));
+    setL1SuggestionStatus(toText(safe.l1SuggestionStatus));
     restoreActionPackSnapshot(safe);
   }, [devSpec, masterPrompt, nondevSpec, restoreActionPackSnapshot]);
 
@@ -222,6 +238,8 @@ export default function ResultPanel({
     setExportStatus('');
     setResolvedWarningIds([]);
     setL1FocusGuide(buildEmptyL1FocusGuide());
+    setIsSuggestedHypothesisPreviewOpen(false);
+    setL1SuggestionStatus('');
     resetActionPackState();
     resetCtaHistory();
     setActiveLayer('L1');
@@ -244,6 +262,21 @@ export default function ResultPanel({
     () => buildL1Intelligence({ vibeText: vibe, hypothesis }),
     [vibe, hypothesis],
   );
+  const suggestedHypothesisDiffByField = useMemo(
+    () => INTENT_FIELD_ORDER.reduce((acc, fieldId) => {
+      const currentValue = toText(hypothesis[fieldId]);
+      const inferredValue = toText(l1Intelligence?.inferredHypothesis?.[fieldId]);
+      const isFocusedField = Boolean(l1FocusGuide?.active && l1FocusGuide.targetFields.includes(fieldId));
+      const isLowConfidenceField = l1Intelligence?.lowConfidenceFields?.includes(fieldId);
+      const shouldRecommend = isFocusedField || isLowConfidenceField || !currentValue;
+
+      if (!shouldRecommend || !inferredValue || inferredValue === currentValue) return acc;
+      acc[fieldId] = inferredValue;
+      return acc;
+    }, {}),
+    [hypothesis, l1FocusGuide, l1Intelligence],
+  );
+  const suggestedHypothesisDiffCount = Object.keys(suggestedHypothesisDiffByField).length;
   const l2Intelligence = useMemo(
     () => buildL2Intelligence({ logicMap, changedAxis }),
     [logicMap, changedAxis],
@@ -306,6 +339,11 @@ export default function ResultPanel({
     setL1FocusGuide(buildEmptyL1FocusGuide());
   };
 
+  const resetSuggestedHypothesisPreview = () => {
+    setIsSuggestedHypothesisPreviewOpen(false);
+    setL1SuggestionStatus('');
+  };
+
   // 6) Action handlers (CTA + warning operations)
   const markWarningResolved = (warningId) => {
     setResolvedWarningIds((prev) => (prev.includes(warningId) ? prev : [...prev, warningId]));
@@ -320,6 +358,7 @@ export default function ResultPanel({
         setHypothesisConfirmed(true);
         setHypothesisConfirmedStamp(new Date().toLocaleTimeString('ko-KR', { hour12: false }));
         clearL1FocusGuide();
+        resetSuggestedHypothesisPreview();
         markWarningResolved('intent-unconfirmed');
       },
     });
@@ -344,7 +383,28 @@ export default function ResultPanel({
         ? { ...prev, targetFields: remaining }
         : buildEmptyL1FocusGuide();
     });
+    resetSuggestedHypothesisPreview();
     setResolvedWarningIds((prev) => prev.filter((id) => id !== 'intent-unconfirmed' && id !== 'intent-low-confidence'));
+  };
+
+  const previewSuggestedHypothesis = () => {
+    runCtaAction({
+      layerId: 'L1',
+      actionId: 'preview-suggested-hypothesis',
+      label: '추천 가설 보기',
+      mutate: () => {
+        setIsSuggestedHypothesisPreviewOpen(true);
+        if (suggestedHypothesisDiffCount > 0) {
+          setL1SuggestionStatus(`기존 값은 그대로 두고, 변경 예정 필드 ${suggestedHypothesisDiffCount}개를 아래에 미리 보여줍니다.`);
+          return;
+        }
+        if (l1FocusGuide.active && l1FocusGuide.targetFields.length > 0) {
+          setL1SuggestionStatus('자동으로 덮어쓸 추천값은 없지만, 강조된 필드는 직접 보완이 필요합니다.');
+          return;
+        }
+        setL1SuggestionStatus('현재 입력값과 다른 추천 가설이 없어 그대로 유지됩니다.');
+      },
+    });
   };
 
   const applySuggestedHypothesis = () => {
@@ -355,11 +415,17 @@ export default function ResultPanel({
       mutate: () => {
         setHypothesis((prev) => ({
           ...prev,
-          ...l1Intelligence.suggestedHypothesis,
+          ...suggestedHypothesisDiffByField,
         }));
         setHypothesisConfirmed(false);
         setHypothesisConfirmedStamp('');
         clearL1FocusGuide();
+        setIsSuggestedHypothesisPreviewOpen(false);
+        setL1SuggestionStatus(
+          suggestedHypothesisDiffCount > 0
+            ? `추천 가설 ${suggestedHypothesisDiffCount}개 필드를 기존 값 위에 반영했습니다.`
+            : '적용할 추천 변경값이 없어 기존 값을 그대로 유지했습니다.',
+        );
         setResolvedWarningIds((prev) => prev.filter((id) => id !== 'intent-unconfirmed' && id !== 'intent-low-confidence'));
       },
     });
@@ -494,9 +560,35 @@ export default function ResultPanel({
     });
   };
 
+  const sendWarningToClarifyLoop = (warning) => {
+    if (!canSyncToManualLoop) return;
+
+    runCtaAction({
+      layerId: 'L4',
+      actionId: 'send-to-clarify',
+      label: '수동 루프로 보내기',
+      meta: {
+        warningId: warning?.id || '',
+        existingQuestions: manualLoopQuestionCount,
+      },
+      mutate: () => {
+        const syncedQuestions = onSyncWarningToClarify({
+          source: 'result_panel_warning',
+          warningId: warning?.id,
+          warningDetail: warning?.detail,
+        });
+        if (Array.isArray(syncedQuestions) && syncedQuestions.length > 0) {
+          setActiveLayer('L5');
+          setExportStatus(`수동 루프 질문 ${syncedQuestions.length}개를 동기화했습니다.`);
+        }
+      },
+    });
+  };
+
   const handleWarningAction = (warningId, actionId) => {
+    const targetWarning = warnings.find((warning) => warning.id === warningId);
+
     if (actionId === 'go-l1') {
-      const targetWarning = warnings.find((warning) => warning.id === warningId);
       runCtaAction({
         layerId: 'L4',
         actionId: 'go-l1',
@@ -554,6 +646,10 @@ export default function ResultPanel({
     }
     if (actionId === 'align-intent') {
       alignIntentToSpec();
+      return;
+    }
+    if (actionId === 'send-to-clarify') {
+      sendWarningToClarifyLoop(targetWarning);
     }
   };
 
@@ -587,6 +683,30 @@ export default function ResultPanel({
           activeModel,
           gateStatus,
         });
+      },
+    });
+  };
+
+  const syncSuggestedQuestionsToManualLoop = () => {
+    if (!canSyncToManualLoop) return;
+
+    runCtaAction({
+      layerId: 'L5',
+      actionId: 'sync-clarify-loop',
+      label: '추천 질문 동기화',
+      meta: {
+        suggestedQuestions: suggestedQuestions.length,
+        existingQuestions: manualLoopQuestionCount,
+      },
+      mutate: () => {
+        const syncedQuestions = onSyncWarningToClarify({
+          source: 'result_panel_l5',
+          warningId: 'schema-0',
+          warningDetail: `question sync ${validationWarnings.join(' | ')}`,
+        });
+        if (Array.isArray(syncedQuestions) && syncedQuestions.length > 0) {
+          setExportStatus(`수동 루프 질문 ${syncedQuestions.length}개를 동기화했습니다.`);
+        }
       },
     });
   };
@@ -713,7 +833,11 @@ export default function ResultPanel({
               l1FocusGuide={l1FocusGuide}
               hypothesisConfirmed={hypothesisConfirmed}
               hypothesisConfirmedStamp={hypothesisConfirmedStamp}
+              suggestionPreviewOpen={isSuggestedHypothesisPreviewOpen}
+              suggestionStatus={l1SuggestionStatus}
+              suggestedHypothesisDiffByField={suggestedHypothesisDiffByField}
               onConfirmHypothesis={confirmHypothesis}
+              onPreviewSuggestedHypothesis={previewSuggestedHypothesis}
               onApplySuggestedHypothesis={applySuggestedHypothesis}
               onClearL1FocusGuide={clearL1FocusGuide}
             />
@@ -743,6 +867,7 @@ export default function ResultPanel({
               remainingWarnings={visibleRemainingWarnings}
               warningSummary={warningSummary}
               compactMode={isCompactIntegrityView}
+              canSyncToManualLoop={canSyncToManualLoop}
               onWarningAction={handleWarningAction}
               onApplyAutoFixes={applyAutoFixes}
             />
@@ -755,9 +880,12 @@ export default function ResultPanel({
               actionPackPresetId={actionPackPresetId}
               actionPackPresets={actionPackPresets}
               actionPackExportStatus={actionPackExportStatus}
+              clarifyQuestions={manualLoopQuestions}
+              canSyncToManualLoop={canSyncToManualLoop}
               onChangeActionPackPreset={changeActionPackPreset}
               onCreateActionPack={createActionPack}
               onExportActionPack={exportActionPack}
+              onSyncToManualLoop={syncSuggestedQuestionsToManualLoop}
             />
           )}
           </div>

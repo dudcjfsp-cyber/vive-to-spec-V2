@@ -6,6 +6,12 @@
 - HEAD: `9d302e9` (`feat: add persona onboarding and beginner prompt enrichment`)
 - Git status: dirty (modified + untracked files, no commit in this run)
 
+## Latest Session Delta
+
+- Week 4 remains in progress, but major mode now syncs `ResultPanel` L4 warning actions and L5 staging with the manual loop question set.
+- Week 5 fallback work has started: `experienced` and `major` generations now retry through `strict_format` and `semantic_repair` when semantic gaps remain.
+- Updated verification in this session: `cmd /c npm test` (52 passed) and `cmd /c npm run build` both succeeded.
+
 ## Completed In This Run
 
 1. Week 1 상태 기반 확장 완료
@@ -61,6 +67,7 @@
 - `ui/app/components/ExperiencedWorkspace.jsx`
 - `ui/app/components/MajorWorkspace.jsx`
 - `ui/app/components/ResultPanel.jsx`
+- `ui/app/components/result-panel/Sections.jsx`
 - `ui/app/services/clarifyLoop.js`
 - `ui/app/services/clarifyLoop.test.js`
 - `ui/app/services/transmuteFlow.js`
@@ -74,6 +81,11 @@
 
 - `cmd /c npm test` 성공 (46 passed)
 - `cmd /c npm run build` 성공
+
+## Latest Validation
+
+- `cmd /c npm test` succeeded (52 passed)
+- `cmd /c npm run build` succeeded
 
 ## Git
 

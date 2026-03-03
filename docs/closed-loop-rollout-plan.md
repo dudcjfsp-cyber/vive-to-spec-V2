@@ -10,9 +10,10 @@
 - Week 1: done
 - Week 2: done
 - Week 3: done (experience mode guided loop v1 connected)
-- Week 4: in progress (major mode manual loop console connected)
+- Week 4: in progress (major mode manual loop console now syncs with ResultPanel L4/L5 actions)
 - Controller refactor: done (generation/regeneration flow helpers extracted)
-- Week 5+: pending
+- Week 5: in progress (strict_format + semantic_repair fallback chain landed in engine)
+- Week 6+: pending
 
 ### 0.1 Latest Progress Snapshot
 
@@ -31,6 +32,13 @@
 4. 경험자/전공자 UI 연결
 - 경험자: 가이드형 1회 재생성
 - 전공자: 수동 질문 제외 / 스킵 / 재생성 콘솔
+
+### 0.2 2026-03-03 Addendum
+
+- `ResultPanel` L4 warning actions can now push targeted questions into the major manual loop set.
+- `ResultPanel` L5 now shows the staged manual-loop questions and can sync suggested questions before regenerate.
+- `engine/graph/transmuteEngine.js` now retries `experienced` and `major` outputs through `strict_format`, then `semantic_repair`, and records repair metadata.
+- Tests were expanded for the new clarify-merge helpers and prompt fallback chain.
 
 ## 1. Why This Document Exists
 

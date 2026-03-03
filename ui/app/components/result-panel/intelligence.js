@@ -99,9 +99,14 @@ export function buildL1Intelligence({ vibeText, hypothesis }) {
     return acc;
   }, {});
 
+  const inferredHypothesis = INTENT_FIELD_ORDER.reduce((acc, fieldId) => {
+    acc[fieldId] = suggestFieldFromVibe(fieldId, vibeText, '');
+    return acc;
+  }, {});
+
   const suggestedHypothesis = INTENT_FIELD_ORDER.reduce((acc, fieldId) => {
     const current = toText(hypothesis[fieldId]);
-    const inferred = suggestFieldFromVibe(fieldId, vibeText, current);
+    const inferred = toText(inferredHypothesis[fieldId]);
     acc[fieldId] = current || inferred;
     return acc;
   }, {});
@@ -126,6 +131,7 @@ export function buildL1Intelligence({ vibeText, hypothesis }) {
     overallConfidence,
     confidenceBand: getConfidenceBand(overallConfidence),
     fieldConfidence,
+    inferredHypothesis,
     suggestedHypothesis,
     lowConfidenceFields,
     questions,

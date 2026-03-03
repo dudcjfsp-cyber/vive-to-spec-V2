@@ -3,6 +3,7 @@ const KNOWN_POLICY_MODES = new Set([
   'baseline',
   'beginner_zero_shot',
   'strict_format',
+  'semantic_repair',
 ]);
 const DEFAULT_SECTION_ORDER = ['role', 'constraints', 'schema', 'goal', 'runtime', 'user_vibe'];
 
@@ -119,6 +120,28 @@ function createBasePolicy(mode) {
     };
   }
 
+  if (mode === 'semantic_repair') {
+    return {
+      mode,
+      allowExamples: true,
+      exampleMode: 'repair',
+      positiveFirst: true,
+      sectionOrder: DEFAULT_SECTION_ORDER.concat('examples'),
+      constraintLines: [
+        'Keep the output field order stable and aligned with the provided schema.',
+        'Preserve valid details and only repair fields that are missing, vague, or contradictory.',
+        'Resolve every listed semantic issue with concrete, implementation-ready content.',
+      ],
+      goalLines: [
+        'Repair the existing JSON so the spec is concrete, complete, and internally consistent.',
+        'Use the repair checklist as required fixes, not optional suggestions.',
+      ],
+      exampleLines: [
+        '{"??以??붿빟":"?붿빟","臾몄젣?뺤쓽_5移?:{"?꾧?":"?ъ슜??,"?몄젣":"?곹솴","臾댁뾿??:"?됰룞","??:"紐⑹쟻","?깃났湲곗?":"痢≪젙 湲곗?"}}',
+      ],
+    };
+  }
+
   return {
     mode: DEFAULT_POLICY_MODE,
     allowExamples: false,
@@ -150,6 +173,8 @@ export function resolvePromptPolicy({ persona = '', mode = '', taskType = '' } =
   if (!mode) {
     if (normalizedTaskType === 'strict_format') {
       resolvedMode = 'strict_format';
+    } else if (normalizedTaskType === 'semantic_repair') {
+      resolvedMode = 'semantic_repair';
     } else if (normalizedPersona === 'beginner') {
       resolvedMode = 'beginner_zero_shot';
     }

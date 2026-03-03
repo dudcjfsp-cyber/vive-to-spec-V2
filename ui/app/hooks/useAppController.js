@@ -17,7 +17,11 @@ import {
   persistApiKeyToSession,
   persistProviderToSession,
 } from '../services/sessionStore';
-import { buildClarifiedVibe } from '../services/clarifyLoop';
+import {
+  buildClarifiedVibe,
+  buildWarningDrivenQuestions,
+  mergeClarificationQuestions,
+} from '../services/clarifyLoop';
 import {
   buildClarifyAnsweredShadowPayload,
   buildClarifyStartedShadowPayload,
@@ -89,6 +93,20 @@ export function useAppController({ personaConfig = null } = {}) {
     setClarifyQuestions([]);
     setClarifyAnswers({});
     setClarifyLoopTurn(0);
+  }, []);
+
+  const applyClarifyQuestionSet = useCallback((nextQuestions) => {
+    const normalizedQuestions = toStringArray(nextQuestions);
+
+    setClarifyQuestions(normalizedQuestions);
+    setClarifyAnswers((previous) => normalizedQuestions.reduce((acc, question) => {
+      if (Object.prototype.hasOwnProperty.call(previous, question)) {
+        acc[question] = previous[question];
+      }
+      return acc;
+    }, {}));
+
+    return normalizedQuestions;
   }, []);
 
   const loadModelOptions = useCallback(async (nextApiKey, nextProvider) => {
@@ -216,6 +234,50 @@ export function useAppController({ personaConfig = null } = {}) {
     });
   }, [clarifyLoopTurn, clarifyQuestions]);
 
+  const syncWarningToClarifyLoop = useCallback((warningContext = {}) => {
+    if (resolvedPersona.capabilities.loopMode !== 'manual') return [];
+
+    const validationReport = isPlainObject(result?.validation_report) ? result.validation_report : null;
+    const warningQuestions = buildWarningDrivenQuestions({
+      warningId: warningContext?.warningId,
+      warningDetail: warningContext?.warningDetail,
+      validationReport,
+      maxQuestions: 3,
+    });
+    const nextQuestions = mergeClarificationQuestions(
+      clarifyQuestions,
+      warningQuestions,
+      3,
+    );
+
+    if (nextQuestions.length === 0) return [];
+    if (nextQuestions.length === clarifyQuestions.length
+      && nextQuestions.every((question, index) => question === clarifyQuestions[index])) {
+      return nextQuestions;
+    }
+
+    applyClarifyQuestionSet(nextQuestions);
+    shadowWriteSpecState({
+      type: 'clarify_adjusted',
+      currentNodeId: 'clarify_adjusted',
+      pendingQuestions: nextQuestions,
+      loopTurn: clarifyLoopTurn,
+      payload: {
+        reason: toText(warningContext?.source, 'warning_action'),
+        warning_id: toText(warningContext?.warningId),
+        added_question_count: Math.max(0, nextQuestions.length - clarifyQuestions.length),
+      },
+    });
+
+    return nextQuestions;
+  }, [
+    applyClarifyQuestionSet,
+    clarifyLoopTurn,
+    clarifyQuestions,
+    resolvedPersona.capabilities.loopMode,
+    result,
+  ]);
+
   const applyGeneratedResult = useCallback((generated, {
     sourceVibe,
     promptPolicyMode,
@@ -239,10 +301,7 @@ export function useAppController({ personaConfig = null } = {}) {
     setStatus('success');
     setActiveModel((previous) => getSafeModelName(generated?.model, previous));
     setClarifyLoopTurn(nextLoopTurn);
-    setClarifyQuestions(nextQuestions);
-    if (!isPlainObject(clarificationAnswersPatch)) {
-      setClarifyAnswers({});
-    }
+    applyClarifyQuestionSet(nextQuestions);
 
     setSelectedModel((previous) => String(generated?.model || previous || '').trim());
     setModelOptions((previous) => {
@@ -277,7 +336,7 @@ export function useAppController({ personaConfig = null } = {}) {
     }
 
     void requestHybridStackGuide(generated, sourceVibe);
-  }, [apiProvider, requestHybridStackGuide, resolvedPersona.capabilities.loopMode, resolvedPersona.capabilities.maxClarifyTurns, selectedModel]);
+  }, [apiProvider, applyClarifyQuestionSet, requestHybridStackGuide, resolvedPersona.capabilities.loopMode, resolvedPersona.capabilities.maxClarifyTurns, selectedModel]);
 
   const handleSaveKey = useCallback(() => {
     const key = tempKey.trim();
@@ -576,6 +635,7 @@ export function useAppController({ personaConfig = null } = {}) {
       handleTransmute,
       handleApplyClarifications,
       handleRefreshHybrid,
+      syncWarningToClarifyLoop,
     },
   };
 }

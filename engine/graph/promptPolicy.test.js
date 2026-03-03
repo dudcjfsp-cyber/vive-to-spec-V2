@@ -25,6 +25,15 @@ test('strict format policy is the only mode that enables examples', () => {
   assert.equal(baseline.allowExamples, false);
 });
 
+test('semantic repair policy resolves as a repair-specific example mode', () => {
+  const policy = resolvePromptPolicy({ taskType: 'semantic_repair' });
+
+  assert.equal(policy.mode, 'semantic_repair');
+  assert.equal(policy.allowExamples, true);
+  assert.equal(policy.exampleMode, 'repair');
+  assert.equal(policy.positiveFirst, true);
+});
+
 test('rewriteInstructionsPositiveFirst converts negative phrasing to positive-first guidance', () => {
   const rewritten = rewriteInstructionsPositiveFirst('설명문을 길게 쓰지 마라');
 

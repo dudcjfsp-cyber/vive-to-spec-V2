@@ -1341,6 +1341,75 @@ function normalizeResult(raw, fallbackModel, promptMeta = null) {
   return result;
 }
 
+function getSemanticSource(rawValue, schemaKey, legacyKey) {
+  const safe = isObject(rawValue) ? rawValue : {};
+  if (isObject(safe[schemaKey])) return safe[schemaKey];
+  if (isObject(safe[legacyKey])) return safe[legacyKey];
+  return {};
+}
+
+function hasMeaningfulText(value) {
+  return Boolean(toSafeString(value));
+}
+
+function hasMeaningfulList(value) {
+  if (!Array.isArray(value)) return false;
+  return value.some((item) => {
+    if (typeof item === 'string') return Boolean(toSafeString(item));
+    if (!isObject(item)) return false;
+    return Object.values(item).some((entry) => hasMeaningfulText(entry));
+  });
+}
+
+export function collectSemanticRepairIssues(raw) {
+  const safe = isObject(raw) ? raw : {};
+  const problemFrame = getSemanticSource(safe, K.PROBLEM_FRAME, 'problem_frame');
+  const features = getSemanticSource(safe, K.FEATURES, 'core_features');
+  const requestConverter = getSemanticSource(safe, K.REQUEST_CONVERTER, 'request_converter');
+
+  const roles = Array.isArray(safe[K.ROLES]) ? safe[K.ROLES] : safe.users_and_roles;
+  const inputFields = Array.isArray(safe[K.INPUT_FIELDS]) ? safe[K.INPUT_FIELDS] : safe.input_fields;
+  const permissions = Array.isArray(safe[K.PERMISSIONS]) ? safe[K.PERMISSIONS] : safe.permission_matrix;
+  const tests = Array.isArray(safe[K.TESTS]) ? safe[K.TESTS] : safe.test_scenarios;
+
+  const issues = [];
+
+  if (!hasMeaningfulText(problemFrame[K.WHO] ?? problemFrame.who)) {
+    issues.push('Fill the primary user in problem_frame.who.');
+  }
+  if (!hasMeaningfulText(problemFrame[K.WHAT] ?? problemFrame.what)) {
+    issues.push('Fill the core job-to-be-done in problem_frame.what.');
+  }
+  if (!hasMeaningfulText(problemFrame[K.SUCCESS] ?? problemFrame.success_criteria)) {
+    issues.push('Fill concrete success criteria in problem_frame.success.');
+  }
+  if (!hasMeaningfulList(roles)) {
+    issues.push('Add at least one concrete user role.');
+  }
+  if (!hasMeaningfulList(features[K.MUST] ?? features.must)) {
+    issues.push('Add at least one must-have feature.');
+  }
+  if (!hasMeaningfulList(inputFields)) {
+    issues.push('Add at least one input field with name and type.');
+  }
+  if (!hasMeaningfulList(permissions)) {
+    issues.push('Add at least one permission rule.');
+  }
+  if (!hasMeaningfulList(tests)) {
+    issues.push('Add concrete test scenarios.');
+  }
+  if (!hasMeaningfulText(requestConverter[K.STANDARD_REQUEST] ?? requestConverter.standard)) {
+    issues.push('Fill the standard developer request text.');
+  }
+
+  return issues;
+}
+
+function canApplyAdvancedRepairs(promptOptions = {}) {
+  const persona = toSafeString(promptOptions.persona).toLowerCase();
+  return persona === 'experienced' || persona === 'major';
+}
+
 // -------------------------------------------------------
 // 모델 호출/복구 영역
 // -------------------------------------------------------
@@ -1365,6 +1434,7 @@ function buildPromptEnvelope({
   vibe = '',
   showThinking = true,
   retryPayload = null,
+  repairContext = null,
   persona = '',
   policyMode = '',
   promptExperimentId = '',
@@ -1373,6 +1443,33 @@ function buildPromptEnvelope({
     return {
       prompt: `Your previous response was invalid JSON. Fix it now. Return JSON only and strictly follow schema.\nSchema:\n${JSON_SCHEMA_HINT}\nPrevious output:\n${retryPayload}`,
       meta: null,
+    };
+  }
+
+  if (isObject(repairContext) && repairContext.mode === 'semantic_repair') {
+    const policy = resolvePromptPolicy({ mode: 'semantic_repair' });
+    const promptSections = buildPromptSections({
+      vibe,
+      schemaHint: JSON_SCHEMA_HINT,
+      baseSystemPrompt: BASE_SYSTEM_PROMPT,
+      policy,
+      showThinking,
+    });
+    const issueList = Array.isArray(repairContext.issues)
+      ? repairContext.issues.map((issue) => `- ${toSafeString(issue)}`).filter(Boolean).join('\n')
+      : '';
+    const currentJson = JSON.stringify(repairContext.previousOutput || {}, null, 2);
+
+    return {
+      prompt: `${formatPromptSections(promptSections)}\n\nSemantic repair checklist:\n${issueList || '- Repair missing semantic fields.'}\n\nCurrent JSON to repair:\n${currentJson}\n\nPreserve valid details, repair the missing fields listed above, and return only the fixed schema above.`,
+      meta: buildPromptPolicyMeta({
+        vibe,
+        persona,
+        policy,
+        promptSections,
+        positiveRewriteCount: policy.positiveRewriteCount,
+        promptExperimentId,
+      }),
     };
   }
 
@@ -1439,14 +1536,71 @@ async function parseJsonWithOneRetry(generateText, promptOptions) {
   const firstText = await generateJson(generateText, promptOptions);
 
   try {
-    return JSON.parse(extractJsonText(firstText));
+    return {
+      parsed: JSON.parse(extractJsonText(firstText)),
+      parseRepairUsed: false,
+    };
   } catch {
     const repairedText = await generateJson(generateText, {
       ...promptOptions,
       retryPayload: firstText,
     });
-    return JSON.parse(extractJsonText(repairedText));
+    return {
+      parsed: JSON.parse(extractJsonText(repairedText)),
+      parseRepairUsed: true,
+    };
   }
+}
+
+async function runPromptAttempt(generateText, promptOptions) {
+  const { parsed, parseRepairUsed } = await parseJsonWithOneRetry(generateText, promptOptions);
+  return {
+    parsed,
+    parseRepairUsed,
+    promptMeta: buildPromptEnvelope(promptOptions).meta,
+  };
+}
+
+export async function executePromptRepairChain(generateText, promptOptions = {}) {
+  let currentAttempt = await runPromptAttempt(generateText, promptOptions);
+  let repairMode = currentAttempt.parseRepairUsed ? 'json_repair' : 'none';
+  let validationRetryCount = 0;
+  let semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
+  const shouldUseAdvancedRepairs = canApplyAdvancedRepairs(promptOptions);
+
+  if (shouldUseAdvancedRepairs && semanticIssues.length > 0 && promptOptions.policyMode !== 'strict_format') {
+    validationRetryCount += 1;
+    currentAttempt = await runPromptAttempt(generateText, {
+      ...promptOptions,
+      policyMode: 'strict_format',
+    });
+    repairMode = 'strict_format';
+    semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
+  }
+
+  if (shouldUseAdvancedRepairs && semanticIssues.length > 0) {
+    validationRetryCount += 1;
+    currentAttempt = await runPromptAttempt(generateText, {
+      ...promptOptions,
+      policyMode: 'semantic_repair',
+      repairContext: {
+        mode: 'semantic_repair',
+        issues: semanticIssues,
+        previousOutput: currentAttempt.parsed,
+      },
+    });
+    repairMode = 'semantic_repair';
+    semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
+  }
+
+  return {
+    parsed: currentAttempt.parsed,
+    promptMeta: currentAttempt.promptMeta,
+    repairMode,
+    fallbackApplied: repairMode !== 'none' || validationRetryCount > 0,
+    validationRetryCount,
+    semanticIssueCount: semanticIssues.length,
+  };
 }
 
 async function parseResponseJson(response) {
@@ -1768,12 +1922,17 @@ export async function transmuteVibeToSpec(
     policyMode: promptPolicyMode,
     promptExperimentId,
   };
-  const promptMeta = buildPromptEnvelope(promptOptions).meta;
 
   try {
-    const parsed = await parseJsonWithOneRetry(generateText, promptOptions);
+    const repairResult = await executePromptRepairChain(generateText, promptOptions);
     return {
-      ...normalizeResult(parsed, selectedModel, promptMeta),
+      ...normalizeResult(repairResult.parsed, selectedModel, {
+        ...(isObject(repairResult.promptMeta) ? repairResult.promptMeta : {}),
+        repair_mode: repairResult.repairMode,
+        fallback_applied: repairResult.fallbackApplied,
+        validation_retry_count: repairResult.validationRetryCount,
+        semantic_issue_count: repairResult.semanticIssueCount,
+      }),
       provider: normalizedProvider,
     };
   } catch (error) {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPrompt } from './transmuteEngine.js';
+import { buildPrompt, executePromptRepairChain } from './transmuteEngine.js';
 
 const EXPECTED_BASELINE_PROMPT = `SYSTEM:
 
@@ -138,4 +138,100 @@ test('buildPrompt uses policy sections for beginner persona while leaving retry 
     retryPrompt,
     'Your previous response was invalid JSON. Fix it now. Return JSON only and strictly follow schema.\nSchema:\n{\n  "한_줄_요약": "string",\n  "문제정의_5칸": {\n    "누가": "string",\n    "언제": "string",\n    "무엇을": "string",\n    "왜": "string",\n    "성공기준": "string"\n  },\n  "인터뷰_모드": {\n    "추가_질문_3개": ["string", "string", "string"]\n  },\n  "사용자_역할": [\n    {\n      "역할": "string",\n      "설명": "string"\n    }\n  ],\n  "핵심_기능": {\n    "필수": ["string"],\n    "있으면_좋음": ["string"]\n  },\n  "화면_흐름_5단계": ["string", "string", "string", "string", "string"],\n  "입력_데이터_필드": [\n    {\n      "이름": "string",\n      "타입": "string",\n      "예시": "string"\n    }\n  ],\n  "권한_규칙": [\n    {\n      "역할": "string",\n      "조회": true,\n      "생성": true,\n      "수정": true,\n      "삭제": true,\n      "비고": "string"\n    }\n  ],\n  "예외_모호한_점": {\n    "부족한_정보": ["string"],\n    "확인_질문_3개": ["string", "string", "string"]\n  },\n  "리스크_함정_3개": ["string", "string", "string"],\n  "테스트_시나리오_3개": ["string", "string", "string"],\n  "오늘_할_일_3개": ["string", "string", "string"],\n  "완성도_진단": {\n    "점수_0_100": 88,\n    "누락_경고": ["string"]\n  },\n  "수정요청_변환": {\n    "원문": "string",\n    "짧은_요청": "string",\n    "표준_요청": "string",\n    "상세_요청": "string"\n  },\n  "변경_영향도": {\n    "화면": ["string"],\n    "권한": ["string"],\n    "테스트": ["string"]\n  },\n  "레이어_가이드": [\n    {\n      "레이어": "L1|L2|L3|L4|L5",\n      "목표": "string",\n      "출력": "string"\n    }\n  ]\n}\nPrevious output:\n{"broken":',
   );
+});
+
+function createCompleteRawSpec() {
+  return {
+    problem_frame: {
+      who: 'store manager',
+      what: 'review daily order volume',
+      success_criteria: 'can export the report without manual cleanup',
+    },
+    users_and_roles: [
+      { role: 'manager', description: 'reviews the output' },
+    ],
+    core_features: {
+      must: ['Generate a report'],
+    },
+    input_fields: [
+      { name: 'date_range', type: 'string' },
+    ],
+    permission_matrix: [
+      { role: 'manager', read: true, create: false, update: false, delete: false },
+    ],
+    test_scenarios: ['Loads the report', 'Filters the date range', 'Exports CSV'],
+    request_converter: {
+      standard: 'Implement the report workflow.',
+    },
+  };
+}
+
+test('executePromptRepairChain retries with strict_format when experienced output is semantically thin', async () => {
+  const prompts = [];
+  const outputs = [
+    '{}',
+    JSON.stringify(createCompleteRawSpec()),
+  ];
+
+  const result = await executePromptRepairChain(async (prompt) => {
+    prompts.push(prompt);
+    return outputs.shift();
+  }, {
+    vibe: 'daily report',
+    showThinking: false,
+    persona: 'experienced',
+    policyMode: 'baseline',
+    promptExperimentId: 'experienced_baseline_v1',
+  });
+
+  assert.equal(result.repairMode, 'strict_format');
+  assert.equal(result.validationRetryCount, 1);
+  assert.equal(result.semanticIssueCount, 0);
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /Optional examples:/);
+});
+
+test('executePromptRepairChain escalates to semantic repair when strict_format still leaves gaps', async () => {
+  const prompts = [];
+  const outputs = [
+    '{}',
+    '{}',
+    JSON.stringify(createCompleteRawSpec()),
+  ];
+
+  const result = await executePromptRepairChain(async (prompt) => {
+    prompts.push(prompt);
+    return outputs.shift();
+  }, {
+    vibe: 'daily report',
+    showThinking: false,
+    persona: 'major',
+    policyMode: 'baseline',
+    promptExperimentId: 'major_baseline_v1',
+  });
+
+  assert.equal(result.repairMode, 'semantic_repair');
+  assert.equal(result.validationRetryCount, 2);
+  assert.equal(result.semanticIssueCount, 0);
+  assert.equal(prompts.length, 3);
+  assert.match(prompts[2], /Semantic repair checklist:/);
+});
+
+test('executePromptRepairChain keeps beginner mode on the original attempt', async () => {
+  const prompts = [];
+  const result = await executePromptRepairChain(async (prompt) => {
+    prompts.push(prompt);
+    return '{}';
+  }, {
+    vibe: 'quick note',
+    showThinking: false,
+    persona: 'beginner',
+    policyMode: 'beginner_zero_shot',
+    promptExperimentId: 'beginner_zero_shot_v1',
+  });
+
+  assert.equal(result.repairMode, 'none');
+  assert.equal(result.validationRetryCount, 0);
+  assert.equal(result.semanticIssueCount > 0, true);
+  assert.equal(prompts.length, 1);
 });

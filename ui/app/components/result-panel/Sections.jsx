@@ -61,7 +61,11 @@ export function L1HypothesisEditor({
   l1FocusGuide,
   hypothesisConfirmed,
   hypothesisConfirmedStamp,
+  suggestionPreviewOpen = false,
+  suggestionStatus = '',
+  suggestedHypothesisDiffByField = {},
   onConfirmHypothesis,
+  onPreviewSuggestedHypothesis,
   onApplySuggestedHypothesis,
   onClearL1FocusGuide,
 }) {
@@ -76,6 +80,10 @@ export function L1HypothesisEditor({
     acc[field.id] = field.label;
     return acc;
   }, {});
+  const previewFieldIds = fields
+    .map((field) => field.id)
+    .filter((fieldId) => Boolean(toText(suggestedHypothesisDiffByField[fieldId])));
+  const hasPreviewDiff = previewFieldIds.length > 0;
 
   return (
     <section>
@@ -120,6 +128,27 @@ export function L1HypothesisEditor({
         </div>
       )}
 
+      {suggestionPreviewOpen && (
+        <div className="attention-banner urgency-blue">
+          <div className="attention-banner-head">
+            <strong>추천 가설 미리보기</strong>
+          </div>
+          <p>{suggestionStatus || '기존 값은 그대로 두고, 변경 예정 값만 먼저 확인합니다.'}</p>
+          {hasPreviewDiff && (
+            <div className="attention-targets">
+              {previewFieldIds.map((fieldId) => (
+                <UrgencyChip
+                  key={fieldId}
+                  urgency="blue"
+                  className="is-compact"
+                  text={fieldLabelById[fieldId] || fieldId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="field-grid">
       {fields.map((field) => (
         <div
@@ -140,12 +169,29 @@ export function L1HypothesisEditor({
             value={hypothesis[field.id]}
             onChange={(event) => onChangeHypothesis(field.id, event.target.value)}
           />
+          {suggestionPreviewOpen && toText(suggestedHypothesisDiffByField[field.id]) && (
+            <p className="small-muted">
+              추천 적용값: {toText(suggestedHypothesisDiffByField[field.id])}
+            </p>
+          )}
         </div>
       ))}
       </div>
       <div className="stack-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={suggestionPreviewOpen ? onApplySuggestedHypothesis : onPreviewSuggestedHypothesis}
+        >
+          {suggestionPreviewOpen ? '추천 가설 적용' : '추천 가설 보기'}
+        </button>
+        <button type="button" className="btn btn-primary" onClick={onConfirmHypothesis}>
+          가설 확정
+        </button>
+        <div style={{ display: 'none' }}>
         <button type="button" className="btn btn-secondary" onClick={onApplySuggestedHypothesis}>추천 가설 적용</button>
         <button type="button" className="btn btn-primary" onClick={onConfirmHypothesis}>가설 확정</button>
+        </div>
       </div>
       {l1Intelligence.questions.length > 0 && (
         <div>
@@ -283,6 +329,7 @@ export function L4IntegritySimulator({
   remainingWarnings,
   warningSummary,
   compactMode = false,
+  canSyncToManualLoop = false,
   onWarningAction,
   onApplyAutoFixes,
 }) {
@@ -346,6 +393,15 @@ export function L4IntegritySimulator({
           </p>
           <p>{warning.detail}</p>
           <div className="stack-actions">
+            {canSyncToManualLoop && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => onWarningAction(warning.id, 'send-to-clarify')}
+              >
+                수동 루프로 보내기
+              </button>
+            )}
             {warning.actions.map((action) => (
               <button
                 key={`${warning.id}-${action.id}`}
@@ -385,11 +441,15 @@ export function L5ActionBinder({
   actionPackPresetId,
   actionPackPresets,
   actionPackExportStatus,
+  clarifyQuestions = [],
+  canSyncToManualLoop = false,
   onChangeActionPackPreset,
   onCreateActionPack,
   onExportActionPack,
+  onSyncToManualLoop,
 }) {
   const currentPreset = actionPackPresets.find((preset) => preset.id === actionPackPresetId);
+  const hasClarifyQuestions = Array.isArray(clarifyQuestions) && clarifyQuestions.length > 0;
 
   return (
     <section>
@@ -417,8 +477,35 @@ export function L5ActionBinder({
         maxItems={3}
         emptyItemText="오늘 할 일이 아직 생성되지 않았습니다."
       />
+      {canSyncToManualLoop && (
+        <div className="form-group">
+          <strong>수동 루프</strong>
+          <p className="small-muted">
+            {hasClarifyQuestions
+              ? `수동 루프 콘솔에서 질문 ${clarifyQuestions.length}개를 바로 검토할 수 있습니다.`
+              : '아직 준비된 수동 루프 질문이 없습니다.'}
+          </p>
+          {hasClarifyQuestions && (
+            <ol>
+              {clarifyQuestions.map((question, index) => (
+                <li key={`${question}-${index}`}>{question}</li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
       <ActionPriorityLegend />
       <div className="stack-actions">
+        {canSyncToManualLoop && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onSyncToManualLoop}
+            disabled={typeof onSyncToManualLoop !== 'function'}
+          >
+            질문 동기화
+          </button>
+        )}
         <button type="button" className="btn btn-primary" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
           실행 팩 생성
         </button>
