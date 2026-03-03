@@ -3,6 +3,7 @@ import {
   buildPromptSections,
   resolvePromptPolicy,
 } from './promptPolicy.js';
+import { validateStandardOutput } from '../validation/standardOutputValidation.js';
 
 /**
  * llmCore.js 읽기 가이드(비전공자용)
@@ -463,48 +464,6 @@ function buildFallbackRequests(summary, mustItems, tests) {
     [K.STANDARD_REQUEST]: `${headline}. 우선순위는 ${must}이며, 완료 기준은 ${test} 통과입니다.`,
     [K.DETAILED_REQUEST]: `${headline}\n- 우선 구현: ${must}\n- 확인 기준: ${test}\n- 실패 시 처리: 입력 누락/권한 없음/유효성 실패 케이스를 분리해 오류 메시지를 제공해주세요.`,
   };
-}
-
-/**
- * 스펙 누락 경고를 계산합니다.
- * 초보자 예시: "필수 기능 없음", "권한 규칙 없음" 같은 경고를 자동 생성합니다.
- */
-function computeMissingWarnings(spec) {
-  const warnings = [];
-
-  if (!spec[K.SUMMARY]) warnings.push('한 줄 요약이 비어 있습니다.');
-  if (!spec[K.PROBLEM_FRAME]?.[K.WHO]) warnings.push('문제정의 5칸: 누가가 비어 있습니다.');
-  if (!spec[K.PROBLEM_FRAME]?.[K.WHAT]) warnings.push('문제정의 5칸: 무엇을이 비어 있습니다.');
-  if (!spec[K.PROBLEM_FRAME]?.[K.SUCCESS]) warnings.push('문제정의 5칸: 성공기준이 비어 있습니다.');
-  if ((spec[K.ROLES] || []).length === 0) warnings.push('사용자 역할이 비어 있습니다.');
-  if ((spec[K.FEATURES]?.[K.MUST] || []).length === 0) warnings.push('필수 기능이 비어 있습니다.');
-  if ((spec[K.INPUT_FIELDS] || []).length === 0) warnings.push('입력 데이터 필드가 비어 있습니다.');
-  if ((spec[K.PERMISSIONS] || []).length === 0) warnings.push('권한 규칙이 비어 있습니다.');
-  if ((spec[K.TESTS] || []).length === 0) warnings.push('테스트 시나리오가 비어 있습니다.');
-  if (!spec[K.REQUEST_CONVERTER]?.[K.STANDARD_REQUEST]) warnings.push('표준 요청문이 비어 있습니다.');
-
-  return warnings;
-}
-
-/**
- * 스펙 완성도 점수(0~100)를 계산합니다.
- * 핵심 체크 항목 통과율을 단순 퍼센트로 환산합니다.
- */
-function computeScoreFromSpec(spec) {
-  const checks = [
-    Boolean(spec[K.SUMMARY]),
-    Boolean(spec[K.PROBLEM_FRAME]?.[K.WHO]),
-    Boolean(spec[K.PROBLEM_FRAME]?.[K.WHAT]),
-    Boolean(spec[K.PROBLEM_FRAME]?.[K.SUCCESS]),
-    (spec[K.ROLES] || []).length > 0,
-    (spec[K.FEATURES]?.[K.MUST] || []).length > 0,
-    (spec[K.FLOW] || []).length === 5,
-    (spec[K.INPUT_FIELDS] || []).length > 0,
-    (spec[K.PERMISSIONS] || []).length > 0,
-    (spec[K.TESTS] || []).length === 3,
-  ];
-  const passed = checks.filter(Boolean).length;
-  return Math.round((passed / checks.length) * 100);
 }
 
 /**
@@ -1320,16 +1279,22 @@ function normalizeStandardOutput(raw) {
     baseSpec[K.IMPACT][K.IMPACT_TESTS] = baseSpec[K.TESTS].map((item) => `${item} 검증 케이스 영향`);
   }
 
-  const computedWarnings = computeMissingWarnings(baseSpec);
   const providedWarnings = toStringArray(completenessSource[K.WARNINGS] ?? completenessSource.warnings);
   const providedScore = toIntegerInRange(completenessSource[K.SCORE] ?? completenessSource.score, 0, 100);
+  const validationReport = validateStandardOutput(baseSpec, {
+    warnings: providedWarnings,
+    score: providedScore,
+  });
 
   baseSpec[K.COMPLETENESS] = {
-    [K.SCORE]: providedScore ?? computeScoreFromSpec(baseSpec),
-    [K.WARNINGS]: providedWarnings.length ? providedWarnings : computedWarnings,
+    [K.SCORE]: validationReport.score,
+    [K.WARNINGS]: validationReport.warnings,
   };
 
-  return baseSpec;
+  return {
+    spec: baseSpec,
+    validationReport,
+  };
 }
 
 // -------------------------------------------------------
@@ -1344,7 +1309,7 @@ function normalizeStandardOutput(raw) {
  */
 function normalizeResult(raw, fallbackModel, promptMeta = null) {
   const safe = isObject(raw) ? raw : {};
-  const spec = normalizeStandardOutput(safe);
+  const { spec, validationReport } = normalizeStandardOutput(safe);
   const rawThinking = isObject(safe.layers?.L1_thinking)
     ? safe.layers.L1_thinking
     : (isObject(safe.L1_thinking) ? safe.L1_thinking : null);
@@ -1357,6 +1322,7 @@ function normalizeResult(raw, fallbackModel, promptMeta = null) {
     model: typeof safe.model === 'string' && safe.model.trim() ? safe.model : fallbackModel,
     standard_output: spec,
     [K.STANDARD_OUTPUT]: spec,
+    validation_report: validationReport,
     artifacts: {
       dev_spec_md: buildDevSpecMarkdown(spec),
       nondev_spec_md: buildNonDevSpecMarkdown(spec),

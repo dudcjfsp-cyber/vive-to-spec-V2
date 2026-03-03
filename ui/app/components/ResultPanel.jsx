@@ -60,6 +60,7 @@ export default function ResultPanel({
   devSpec,
   masterPrompt,
   promptPolicyMeta,
+  validationReport,
   personaCapabilities,
   onRefreshHybrid,
 }) {
@@ -80,6 +81,16 @@ export default function ResultPanel({
   const positiveRewriteCount = Number.isFinite(Number(promptPolicyMeta?.positive_rewrite_count))
     ? Number(promptPolicyMeta?.positive_rewrite_count)
     : 0;
+  const shouldShowValidationMeta = safeCapabilities.showValidationMeta === true;
+  const validationSeverity = toText(validationReport?.severity, 'low');
+  const validationWarnings = useMemo(
+    () => toStringArray(validationReport?.warnings).slice(0, 3),
+    [validationReport],
+  );
+  const suggestedQuestions = useMemo(
+    () => toStringArray(validationReport?.suggested_questions).slice(0, 3),
+    [validationReport],
+  );
 
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
@@ -647,6 +658,38 @@ export default function ResultPanel({
           <p className="small-muted">
             sections: {promptSections.length > 0 ? promptSections.join(' -> ') : '-'}
           </p>
+        </section>
+      )}
+
+      {shouldShowValidationMeta && validationReport && (
+        <section className="panel">
+          <h2>Validation Report</h2>
+          <div className="signal-pills">
+            <span className="pill">severity: {validationSeverity}</span>
+            <span className="pill">blocking: {Number(validationReport?.blocking_issue_count || 0)}</span>
+            <span className="pill">warnings: {Number(validationReport?.warning_count || 0)}</span>
+            <span className="pill">auto proceed: {validationReport?.can_auto_proceed ? 'yes' : 'no'}</span>
+          </div>
+          {validationWarnings.length > 0 && (
+            <div>
+              <strong>상위 경고</strong>
+              <ul>
+                {validationWarnings.map((warning, idx) => (
+                  <li key={`${warning}-${idx}`}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {suggestedQuestions.length > 0 && (
+            <div>
+              <strong>추천 보완 질문</strong>
+              <ol>
+                {suggestedQuestions.map((question, idx) => (
+                  <li key={`${question}-${idx}`}>{question}</li>
+                ))}
+              </ol>
+            </div>
+          )}
         </section>
       )}
 

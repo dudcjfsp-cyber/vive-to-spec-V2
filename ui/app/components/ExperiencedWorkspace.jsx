@@ -55,6 +55,7 @@ function renderSharedDiagnosticsLayout({
           devSpec={derived.devSpec}
           masterPrompt={derived.masterPrompt}
           promptPolicyMeta={derived.promptPolicyMeta}
+          validationReport={derived.validationReport}
           personaCapabilities={personaCapabilities}
           onRefreshHybrid={actions.handleRefreshHybrid}
         />
@@ -93,6 +94,12 @@ export default function ExperiencedWorkspace({
   const completionScore = Number.isFinite(Number(derived.standardOutput?.완성도_진단?.점수_0_100))
     ? Number(derived.standardOutput?.완성도_진단?.점수_0_100)
     : null;
+  const validationSeverity = toText(derived.validationReport?.severity, 'low');
+  const validationQuestions = useMemo(
+    () => toStringArray(derived.clarifyLoop?.questions),
+    [derived.clarifyLoop],
+  );
+  const canSubmitClarification = derived.clarifyLoop?.canSubmit === true;
 
   if (!compactMode) {
     return (
@@ -231,6 +238,7 @@ export default function ExperiencedWorkspace({
                 <span className="pill">model: {state.activeModel}</span>
                 <span className="pill">hybrid: {state.hybridStackGuideStatus}</span>
                 {completionScore !== null && <span className="pill">score: {completionScore}</span>}
+                {derived.validationReport && <span className="pill">validation: {validationSeverity}</span>}
               </div>
 
               <section className="experienced-summary-card">
@@ -266,6 +274,43 @@ export default function ExperiencedWorkspace({
                   title="추천 구현 스택"
                 />
               </section>
+
+              {validationQuestions.length > 0 && (
+                <section className="experienced-summary-card">
+                  <h3>보완 질문 후 재생성</h3>
+                  <p className="small-muted">
+                    현재 결과의 누락 항목이 감지되어, 필요한 정보만 보완해 한 번 더 재생성할 수 있습니다.
+                  </p>
+                  <div className="stack-actions">
+                    <span className="pill">turn: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
+                    <span className="pill">questions: {validationQuestions.length}</span>
+                  </div>
+                  <div className="form-group">
+                    {validationQuestions.map((question) => (
+                      <div key={question} className="form-group">
+                        <label>{question}</label>
+                        <textarea
+                          rows={2}
+                          value={toText(derived.clarifyLoop?.answers?.[question])}
+                          onChange={(event) => actions.setClarifyAnswer(question, event.target.value)}
+                          placeholder="확정된 정보만 짧게 입력하세요."
+                          disabled={state.status === 'processing'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="stack-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={actions.handleApplyClarifications}
+                      disabled={state.status === 'processing' || !canSubmitClarification}
+                    >
+                      보완 반영 후 재생성
+                    </button>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

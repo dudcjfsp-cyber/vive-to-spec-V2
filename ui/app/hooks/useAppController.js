@@ -17,6 +17,16 @@ import {
   persistApiKeyToSession,
   persistProviderToSession,
 } from '../services/sessionStore';
+import { buildClarifiedVibe } from '../services/clarifyLoop';
+import {
+  buildClarifyAnsweredShadowPayload,
+  buildClarifyStartedShadowPayload,
+  buildGeneratedResultPlan,
+  buildPromptExperimentId,
+  buildRegenerateErrorShadowPayload,
+  buildRegenerateStartedShadowPayload,
+  buildTransmuteSuccessShadowPayload,
+} from '../services/transmuteFlow.js';
 import { initializeSpecState, shadowWriteSpecState } from '../services/specStateShadow';
 import { resolvePersonaRuntimeConfig } from '../persona/presets';
 
@@ -25,11 +35,19 @@ function getSafeModelName(value, fallback = 'OFFLINE') {
   return text ? text.toUpperCase() : fallback;
 }
 
-function buildPromptExperimentId(personaConfig) {
-  const resolvedPersona = resolvePersonaRuntimeConfig(personaConfig);
-  const scope = String(resolvedPersona.promptExperimentScope || resolvedPersona.id || 'default').trim() || 'default';
-  const mode = String(resolvedPersona.promptPolicyMode || 'baseline').trim() || 'baseline';
-  return `${scope}_${mode}_v1`;
+function toText(value, fallback = '') {
+  return typeof value === 'string' ? value.trim() : fallback;
+}
+
+function toStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => toText(item))
+    .filter(Boolean);
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function useAppController({ personaConfig = null } = {}) {
@@ -52,6 +70,9 @@ export function useAppController({ personaConfig = null } = {}) {
   const [showThinking, setShowThinking] = useState(true);
   const [hybridStackGuide, setHybridStackGuide] = useState(null);
   const [hybridStackGuideStatus, setHybridStackGuideStatus] = useState('idle');
+  const [clarifyQuestions, setClarifyQuestions] = useState([]);
+  const [clarifyAnswers, setClarifyAnswers] = useState({});
+  const [clarifyLoopTurn, setClarifyLoopTurn] = useState(0);
 
   const providerOptions = useMemo(
     () => SUPPORTED_MODEL_PROVIDERS.map((id) => ({ id, label: getProviderDisplayName(id) })),
@@ -62,6 +83,12 @@ export function useAppController({ personaConfig = null } = {}) {
     setModelOptions([]);
     setSelectedModel('');
     setActiveModel('OFFLINE');
+  }, []);
+
+  const resetClarifyLoop = useCallback(() => {
+    setClarifyQuestions([]);
+    setClarifyAnswers({});
+    setClarifyLoopTurn(0);
   }, []);
 
   const loadModelOptions = useCallback(async (nextApiKey, nextProvider) => {
@@ -137,6 +164,121 @@ export function useAppController({ personaConfig = null } = {}) {
     void requestHybridStackGuide(result, vibe);
   }, [requestHybridStackGuide, result, vibe]);
 
+  const setClarifyAnswer = useCallback((question, value) => {
+    const normalizedQuestion = toText(question);
+    if (!normalizedQuestion) return;
+
+    setClarifyAnswers((previous) => ({
+      ...previous,
+      [normalizedQuestion]: String(value || ''),
+    }));
+  }, []);
+
+  const removeClarifyQuestion = useCallback((question) => {
+    const normalizedQuestion = toText(question);
+    if (!normalizedQuestion) return;
+
+    const nextQuestions = clarifyQuestions.filter((item) => item !== normalizedQuestion);
+    const nextAnswers = { ...clarifyAnswers };
+    delete nextAnswers[normalizedQuestion];
+
+    setClarifyQuestions(nextQuestions);
+    setClarifyAnswers(nextAnswers);
+
+    shadowWriteSpecState({
+      type: 'clarify_skipped',
+      currentNodeId: 'clarify_skipped',
+      clarificationAnswersPatch: nextAnswers,
+      pendingQuestions: nextQuestions,
+      loopTurn: clarifyLoopTurn,
+      payload: {
+        skipped_question: normalizedQuestion,
+        remaining_questions: nextQuestions.length,
+      },
+    });
+  }, [clarifyAnswers, clarifyLoopTurn, clarifyQuestions]);
+
+  const clearClarifyQuestions = useCallback(() => {
+    if (clarifyQuestions.length === 0) return;
+
+    setClarifyQuestions([]);
+    setClarifyAnswers({});
+
+    shadowWriteSpecState({
+      type: 'clarify_skipped',
+      currentNodeId: 'clarify_skipped',
+      pendingQuestions: [],
+      loopTurn: clarifyLoopTurn,
+      payload: {
+        reason: 'manual_clear',
+        skipped_count: clarifyQuestions.length,
+      },
+    });
+  }, [clarifyLoopTurn, clarifyQuestions]);
+
+  const applyGeneratedResult = useCallback((generated, {
+    sourceVibe,
+    promptPolicyMode,
+    promptExperimentId,
+    nextLoopTurn = 0,
+    clarificationAnswersPatch = null,
+  }) => {
+    const {
+      validationReport,
+      nextQuestions,
+      nextGenerationId,
+    } = buildGeneratedResultPlan({
+      generated,
+      loopMode: resolvedPersona.capabilities.loopMode,
+      maxClarifyTurns: resolvedPersona.capabilities.maxClarifyTurns,
+      nextLoopTurn,
+      promptExperimentId,
+    });
+
+    setResult(generated);
+    setStatus('success');
+    setActiveModel((previous) => getSafeModelName(generated?.model, previous));
+    setClarifyLoopTurn(nextLoopTurn);
+    setClarifyQuestions(nextQuestions);
+    if (!isPlainObject(clarificationAnswersPatch)) {
+      setClarifyAnswers({});
+    }
+
+    setSelectedModel((previous) => String(generated?.model || previous || '').trim());
+    setModelOptions((previous) => {
+      const model = String(generated?.model || '').trim();
+      if (!model) return previous;
+      return previous.includes(model) ? previous : [model, ...previous];
+    });
+
+    shadowWriteSpecState({
+      ...buildTransmuteSuccessShadowPayload({
+        generated,
+        apiProvider,
+        selectedModel,
+        promptPolicyMode,
+        promptExperimentId,
+        validationReport,
+        nextQuestions,
+        nextLoopTurn,
+        nextGenerationId,
+        clarificationAnswersPatch,
+      }),
+    });
+
+    const clarifyStartedPayload = buildClarifyStartedShadowPayload({
+      nextQuestions,
+      validationReport,
+      nextLoopTurn,
+      nextGenerationId,
+    });
+    if (clarifyStartedPayload) {
+      shadowWriteSpecState(clarifyStartedPayload);
+    }
+
+    void requestHybridStackGuide(generated, sourceVibe);
+  }, [apiProvider, requestHybridStackGuide, resolvedPersona.capabilities.loopMode, resolvedPersona.capabilities.maxClarifyTurns, selectedModel]);
+
   const handleSaveKey = useCallback(() => {
     const key = tempKey.trim();
     if (!key) return;
@@ -185,6 +327,7 @@ export function useAppController({ personaConfig = null } = {}) {
     setResult(null);
     setHybridStackGuide(null);
     setHybridStackGuideStatus('idle');
+    resetClarifyLoop();
 
     shadowWriteSpecState({
       type: 'transmute_started',
@@ -212,34 +355,12 @@ export function useAppController({ personaConfig = null } = {}) {
         promptPolicyMode,
         promptExperimentId,
       });
-      setResult(generated);
-      setStatus('success');
-      setActiveModel(getSafeModelName(generated?.model, activeModel));
-      setSelectedModel((prev) => String(generated?.model || prev || '').trim());
-      setModelOptions((prev) => {
-        const model = String(generated?.model || '').trim();
-        if (!model) return prev;
-        return prev.includes(model) ? prev : [model, ...prev];
+      applyGeneratedResult(generated, {
+        sourceVibe: vibe,
+        promptPolicyMode,
+        promptExperimentId,
+        nextLoopTurn: 0,
       });
-
-      shadowWriteSpecState({
-        type: 'transmute_success',
-        currentNodeId: 'transmute_success',
-        answersPatch: {
-          api_provider: apiProvider,
-          last_model: String(generated?.model || selectedModel || ''),
-          last_prompt_policy_mode: String(generated?.meta?.prompt_policy_mode || promptPolicyMode),
-        },
-        payload: {
-          provider: apiProvider,
-          model: String(generated?.model || selectedModel || ''),
-          prompt_policy_mode: String(generated?.meta?.prompt_policy_mode || promptPolicyMode),
-          prompt_experiment_id: String(generated?.meta?.prompt_experiment_id || promptExperimentId),
-          example_mode: String(generated?.meta?.example_mode || 'none'),
-        },
-      });
-
-      void requestHybridStackGuide(generated, vibe);
     } catch (error) {
       setStatus('error');
       setActiveModel('LINK FAILURE');
@@ -257,7 +378,96 @@ export function useAppController({ personaConfig = null } = {}) {
         },
       });
     }
-  }, [activeModel, apiKey, apiProvider, requestHybridStackGuide, resolvedPersona, selectedModel, showThinking, vibe]);
+  }, [apiKey, apiProvider, applyGeneratedResult, resetClarifyLoop, resolvedPersona, selectedModel, showThinking, vibe]);
+
+  const handleApplyClarifications = useCallback(async () => {
+    if (!result || !apiKey) return;
+
+    const answeredEntries = clarifyQuestions
+      .map((question) => [question, toText(clarifyAnswers[question])] )
+      .filter(([, answer]) => Boolean(answer));
+    if (answeredEntries.length === 0) return;
+
+    const savedAtMs = Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS)));
+    if (isApiKeyExpired(savedAtMs)) {
+      clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
+      setApiKey('');
+      setIsSettingsOpen(true);
+      setErrorMessage('API 키가 만료되었습니다. 다시 입력해 주세요.');
+      setActiveModel('OFFLINE');
+      return;
+    }
+
+    persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
+    const promptPolicyMode = String(resolvedPersona.promptPolicyMode || 'baseline');
+    const promptExperimentId = buildPromptExperimentId(resolvedPersona);
+    const personaId = String(resolvedPersona.id === 'default' ? '' : resolvedPersona.id);
+    const nextLoopTurn = clarifyLoopTurn + 1;
+    const clarificationAnswersPatch = Object.fromEntries(answeredEntries);
+    const clarifiedVibe = buildClarifiedVibe(vibe, clarifyQuestions, clarificationAnswersPatch);
+
+    setStatus('processing');
+    setErrorMessage('');
+    setHybridStackGuide(null);
+    setHybridStackGuideStatus('idle');
+
+    shadowWriteSpecState({
+      ...buildClarifyAnsweredShadowPayload({
+        clarificationAnswersPatch,
+        clarifyQuestions,
+        nextLoopTurn,
+        answeredCount: answeredEntries.length,
+      }),
+    });
+
+    shadowWriteSpecState({
+      ...buildRegenerateStartedShadowPayload({
+        clarificationAnswersPatch,
+        clarifyQuestions,
+        nextLoopTurn,
+        apiProvider,
+        selectedModel,
+        promptPolicyMode,
+        promptExperimentId,
+        answeredCount: answeredEntries.length,
+      }),
+    });
+
+    try {
+      const generated = await transmuteVibeToSpec(clarifiedVibe, apiKey, {
+        provider: apiProvider,
+        showThinking,
+        modelName: selectedModel,
+        persona: personaId,
+        promptPolicyMode,
+        promptExperimentId,
+      });
+      applyGeneratedResult(generated, {
+        sourceVibe: clarifiedVibe,
+        promptPolicyMode,
+        promptExperimentId,
+        nextLoopTurn,
+        clarificationAnswersPatch,
+      });
+    } catch (error) {
+      setStatus('error');
+      setActiveModel('LINK FAILURE');
+      setHybridStackGuide(null);
+      setHybridStackGuideStatus('error');
+      setErrorMessage(error instanceof Error ? error.message : '알 수 없는 변환 오류입니다.');
+      shadowWriteSpecState({
+        ...buildRegenerateErrorShadowPayload({
+          clarificationAnswersPatch,
+          clarifyQuestions,
+          nextLoopTurn,
+          apiProvider,
+          selectedModel,
+          promptPolicyMode,
+          promptExperimentId,
+        }),
+      });
+    }
+  }, [apiKey, apiProvider, applyGeneratedResult, clarifyAnswers, clarifyLoopTurn, clarifyQuestions, resolvedPersona, result, selectedModel, showThinking, vibe]);
 
   useEffect(() => {
     initializeSpecState();
@@ -334,6 +544,7 @@ export function useAppController({ personaConfig = null } = {}) {
       showThinking,
       hybridStackGuide,
       hybridStackGuideStatus,
+      clarifyLoopTurn,
     },
     derived: {
       providerOptions,
@@ -342,6 +553,14 @@ export function useAppController({ personaConfig = null } = {}) {
       devSpec: result?.artifacts?.dev_spec_md || '',
       masterPrompt: result?.artifacts?.master_prompt || '',
       promptPolicyMeta: result?.meta || null,
+      validationReport: isPlainObject(result?.validation_report) ? result.validation_report : null,
+      clarifyLoop: {
+        active: Boolean(resolvedPersona.capabilities.showLoopControls) && clarifyQuestions.length > 0,
+        questions: clarifyQuestions,
+        answers: clarifyAnswers,
+        canSubmit: clarifyQuestions.some((question) => Boolean(toText(clarifyAnswers[question]))),
+        loopTurn: clarifyLoopTurn,
+      },
     },
     actions: {
       setVibe,
@@ -350,8 +569,12 @@ export function useAppController({ personaConfig = null } = {}) {
       setSelectedModel,
       setShowThinking,
       setIsSettingsOpen,
+      setClarifyAnswer,
+      removeClarifyQuestion,
+      clearClarifyQuestions,
       handleSaveKey,
       handleTransmute,
+      handleApplyClarifications,
       handleRefreshHybrid,
     },
   };

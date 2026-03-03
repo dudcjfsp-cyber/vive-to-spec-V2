@@ -20,6 +20,10 @@ const DEFAULT_PERSONA_CAPABILITIES = Object.freeze({
   showLegacyArtifacts: true,
   showCtaHistory: true,
   showIntegrityWarningsExpanded: true,
+  loopMode: 'off',
+  maxClarifyTurns: 0,
+  showLoopControls: false,
+  showValidationMeta: false,
 });
 
 function toText(value, fallback = '') {
@@ -70,6 +74,10 @@ export const PERSONA_PRESETS = [
       showLegacyArtifacts: true,
       showCtaHistory: true,
       showIntegrityWarningsExpanded: true,
+      loopMode: 'off',
+      maxClarifyTurns: 0,
+      showLoopControls: false,
+      showValidationMeta: false,
     },
   },
   {
@@ -88,6 +96,10 @@ export const PERSONA_PRESETS = [
       showLayerPanels: true,
       showLegacyArtifacts: true,
       showCtaHistory: true,
+      loopMode: 'guided_once',
+      maxClarifyTurns: 1,
+      showLoopControls: true,
+      showValidationMeta: true,
     },
   },
   {
@@ -106,6 +118,10 @@ export const PERSONA_PRESETS = [
       showLayerPanels: true,
       showLegacyArtifacts: true,
       showCtaHistory: true,
+      loopMode: 'manual',
+      maxClarifyTurns: 3,
+      showLoopControls: true,
+      showValidationMeta: true,
     },
   },
 ].map((preset) => withPersonaRuntimeDefaults(preset));

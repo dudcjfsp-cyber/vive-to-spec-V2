@@ -20,6 +20,9 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(beginner?.capabilities.showPromptPolicyMeta, true);
   assert.equal(beginner?.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(beginner?.capabilities.allowBeginnerAdvancedToggle, true);
+  assert.equal(beginner?.capabilities.loopMode, 'off');
+  assert.equal(beginner?.capabilities.maxClarifyTurns, 0);
+  assert.equal(beginner?.capabilities.showLoopControls, false);
   assert.equal(experienced?.workspaceKind, 'advanced');
   assert.equal(experienced?.advancedWorkspaceVariant, 'experienced');
   assert.equal(experienced?.promptPolicyMode, 'baseline');
@@ -27,11 +30,17 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(experienced?.capabilities.showLayerPanels, true);
   assert.equal(experienced?.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(experienced?.capabilities.showIntegrityWarningsExpanded, false);
+  assert.equal(experienced?.capabilities.loopMode, 'guided_once');
+  assert.equal(experienced?.capabilities.maxClarifyTurns, 1);
+  assert.equal(experienced?.capabilities.showLoopControls, true);
   assert.equal(major?.workspaceKind, 'advanced');
   assert.equal(major?.advancedWorkspaceVariant, 'major');
   assert.equal(major?.promptPolicyMode, 'baseline');
   assert.equal(major?.capabilities.showPromptPolicyMeta, true);
   assert.equal(major?.capabilities.showAdvancedPromptPolicyMeta, true);
+  assert.equal(major?.capabilities.loopMode, 'manual');
+  assert.equal(major?.capabilities.maxClarifyTurns, 3);
+  assert.equal(major?.capabilities.showLoopControls, true);
 });
 
 test('resolvePersonaRuntimeConfig falls back to a safe default', () => {
@@ -45,6 +54,8 @@ test('resolvePersonaRuntimeConfig falls back to a safe default', () => {
   assert.equal(fallback.capabilities.showLayerPanels, true);
   assert.equal(fallback.capabilities.showPromptPolicyMeta, false);
   assert.equal(fallback.capabilities.showAdvancedPromptPolicyMeta, false);
+  assert.equal(fallback.capabilities.loopMode, 'off');
+  assert.equal(fallback.capabilities.maxClarifyTurns, 0);
 });
 
 test('resolvePersonaCapabilities returns normalized capability flags', () => {
@@ -55,7 +66,11 @@ test('resolvePersonaCapabilities returns normalized capability flags', () => {
   assert.equal(capabilities.allowBeginnerAdvancedToggle, true);
   assert.equal(capabilities.defaultBeginnerAdvancedOpen, false);
   assert.equal(capabilities.showLegacyArtifacts, true);
+  assert.equal(capabilities.loopMode, 'off');
+  assert.equal(capabilities.maxClarifyTurns, 0);
   assert.equal(fallbackCapabilities.showPromptPolicyMeta, false);
   assert.equal(fallbackCapabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(fallbackCapabilities.showLayerPanels, true);
+  assert.equal(fallbackCapabilities.showLoopControls, false);
+  assert.equal(fallbackCapabilities.showValidationMeta, false);
 });

@@ -1,6 +1,6 @@
 # Session Handoff (Latest)
 
-- Updated: 2026-03-01
+- Updated: 2026-03-03
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
 - HEAD: `9d302e9` (`feat: add persona onboarding and beginner prompt enrichment`)
@@ -8,44 +8,42 @@
 
 ## Completed In This Run
 
-1. Prompt baseline 보호 테스트 추가
-- `engine/graph/transmuteEngine.test.js`에서 legacy baseline prompt 문자열을 snapshot 수준으로 고정
-- retry JSON 복구 프롬프트도 기존 문자열 유지 검증 추가
+1. Week 1 상태 기반 확장 완료
+- `engine/state/specState.js`를 v2로 확장
+- `clarification_answers`, `pending_questions`, `last_validation`, `loop_turn`, `last_generation_id` 추가
+- `ui/app/services/specStateShadow.js`에서 폐루프 상태 필드 shadow write 지원
+- 테스트 추가:
+  - `engine/state/specState.test.js`
+  - `ui/app/services/specStateShadow.test.js`
 
-2. Prompt policy 모듈 1차 이식
-- `engine/graph/promptPolicy.js` 신설
-- persona/mode 기반 `baseline`, `beginner_zero_shot`, `strict_format` 해석 추가
-- positive-first rewrite 유틸과 prompt section/meta 생성 로직 추가
-- `engine/graph/promptPolicy.test.js`로 순수 함수 테스트 추가
+2. Week 2 검증 계층 분리 완료
+- `engine/validation/standardOutputValidation.js` 신설
+- 누락 경고/점수 계산을 엔진 본문에서 분리
+- `validation_report` 반환 시작:
+  - `score`
+  - `warnings`
+  - `blocking_issues`
+  - `severity`
+  - `can_auto_proceed`
+  - `suggested_questions`
+  - `needs_clarification`
+- `engine/validation/standardOutputValidation.test.js` 추가
 
-3. Transmute 엔진 policy-aware 전환(기준선 fallback 유지)
-- `buildPrompt()`를 object 옵션 기반으로 확장
-- `beginner` 경로는 정책 섹션형 프롬프트 사용
-- `baseline` 경로는 기존 prompt string 완전 유지
-- retry 경로는 정책 우회 후 기존 복구 프롬프트 그대로 유지
-- 응답에 backward-compatible `meta` 필드 추가:
-  - `prompt_policy_mode`
-  - `prompt_experiment_id`
-  - `example_mode`
-  - `positive_rewrite_count`
-  - `prompt_sections`
+3. Week 3 경험자 폐루프 v1 연결
+- `ui/app/services/clarifyLoop.js` 신설
+- 경험자 경로에서 검증 결과 기반 보완 질문 1회 재생성 흐름 연결
+- `ui/app/components/ExperiencedWorkspace.jsx`에 보완 질문 후 재생성 카드 추가
 
-4. Persona -> 엔진 옵션 연결
-- `ui/app/hooks/useAppController.js`에서 persona 기반 정책 기본값 연결
-- 1차 매핑:
-  - `beginner` -> `beginner_zero_shot`
-  - `experienced`, `major`, 미선택 -> `baseline`
-- `promptExperimentId` 기본값도 함께 생성해 shadow state payload에 기록
-- `ui/app/App.jsx`에서 active persona를 controller에 전달
+4. Week 4 전공자 수동 루프 콘솔 연결(진행 중)
+- `ui/app/components/MajorWorkspace.jsx`에 manual loop console 추가
+- 질문 제외 / 이번 질문 건너뛰기 / 수동 재생성 버튼 연결
+- `ui/app/components/ResultPanel.jsx`에 `Validation Report` 패널 추가
 
-5. Beginner UI 메타 표시 연결
-- `ui/app/components/BeginnerWorkspace.jsx`에서 엔진 정책 뱃지 표시
-- 노출 항목:
-  - 엔진 정책 모드
-  - 긍정형 정리 횟수
-  - 예시 사용 모드
-  - prompt section 순서
-- 기존 `beginner-prompt.js` 후처리 보강은 표시용 보조 역할 유지
+5. Controller 오케스트레이션 1차 정리
+- `ui/app/services/transmuteFlow.js` 신설
+- 생성/재생성의 loop 계획 계산과 shadow payload 조립을 순수 함수로 분리
+- `ui/app/hooks/useAppController.js`는 상태 연결과 side effect 중심으로 축소 시작
+- `ui/app/services/transmuteFlow.test.js` 추가
 
 ## Added / Updated Key Files
 
@@ -53,14 +51,28 @@
 - `engine/graph/promptPolicy.test.js`
 - `engine/graph/transmuteEngine.js`
 - `engine/graph/transmuteEngine.test.js`
+- `engine/validation/standardOutputValidation.js`
+- `engine/validation/standardOutputValidation.test.js`
+- `engine/state/specState.js`
+- `engine/state/specState.test.js`
 - `ui/app/hooks/useAppController.js`
 - `ui/app/App.jsx`
 - `ui/app/components/BeginnerWorkspace.jsx`
+- `ui/app/components/ExperiencedWorkspace.jsx`
+- `ui/app/components/MajorWorkspace.jsx`
+- `ui/app/components/ResultPanel.jsx`
+- `ui/app/services/clarifyLoop.js`
+- `ui/app/services/clarifyLoop.test.js`
+- `ui/app/services/transmuteFlow.js`
+- `ui/app/services/transmuteFlow.test.js`
+- `ui/app/services/specStateShadow.js`
+- `ui/app/services/specStateShadow.test.js`
+- `docs/closed-loop-rollout-plan.md`
 - `docs/handoff/latest.md`
 
 ## Validation
 
-- `cmd /c npm test` 성공 (29 passed)
+- `cmd /c npm test` 성공 (46 passed)
 - `cmd /c npm run build` 성공
 
 ## Git
@@ -77,6 +89,6 @@
 
 ## Suggested Next Session Focus
 
-1. `promptPolicy` 메타를 `ResultPanel`/L4 integrity 경고까지 확장
-2. `strict_format` escape hatch를 실제 opt-in 경로로 연결
-3. baseline vs beginner prompt diff를 더 명시적으로 검증하는 통합 테스트 추가
+1. 전공자 수동 루프를 `ResultPanel` L4/L5 액션과 더 깊게 연결
+2. 경험자/전공자 루프를 `strict_format` 및 semantic repair 폴백과 연결
+3. `useAppController`에서 남은 transmute/hybrid 흐름도 추가 분리해 훅을 더 슬림하게 정리
