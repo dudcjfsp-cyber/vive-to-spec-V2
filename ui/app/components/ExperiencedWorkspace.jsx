@@ -291,7 +291,7 @@ export default function ExperiencedWorkspace({
                         <label>{question}</label>
                         <textarea
                           rows={2}
-                          value={toText(derived.clarifyLoop?.answers?.[question])}
+                          value={typeof derived.clarifyLoop?.answers?.[question] === 'string' ? derived.clarifyLoop.answers[question] : ''}
                           onChange={(event) => actions.setClarifyAnswer(question, event.target.value)}
                           placeholder="확정된 정보만 짧게 입력하세요."
                           disabled={state.status === 'processing'}

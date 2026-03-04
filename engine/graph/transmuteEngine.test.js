@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPrompt, executePromptRepairChain } from './transmuteEngine.js';
+import { buildMasterPrompt, buildPrompt, executePromptRepairChain } from './transmuteEngine.js';
 
 const EXPECTED_BASELINE_PROMPT = `SYSTEM:
 
@@ -132,6 +132,7 @@ test('buildPrompt uses policy sections for beginner persona while leaving retry 
   assert.match(policyPrompt, /\n\nHard constraints:\n- /);
   assert.match(policyPrompt, /\n\nOutput schema shape:\n\{/);
   assert.match(policyPrompt, /\n\nGoal and success conditions:\n- /);
+  assert.match(policyPrompt, /\n\nCore implementation checklist:\n- /);
   assert.match(policyPrompt, /\n\nRuntime option:\n- showThinking=OFF\./);
   assert.match(policyPrompt, /\n\nUser vibe:\n회의록 요약 앱\n\nReturn only the fixed schema above\.$/);
   assert.equal(
@@ -165,6 +166,34 @@ function createCompleteRawSpec() {
     },
   };
 }
+
+function createUniversalSpecValue(label = 'value') {
+  const carrier = function universal() {};
+  return new Proxy(carrier, {
+    get(_target, prop) {
+      if (prop === Symbol.toPrimitive) return () => label;
+      if (prop === 'toString') return () => label;
+      if (prop === 'valueOf') return () => label;
+      if (prop === 'length') return 0;
+      return createUniversalSpecValue(label);
+    },
+  });
+}
+
+test('buildMasterPrompt force-injects the shared core checklist into the AI coding prompt', () => {
+  const universal = createUniversalSpecValue('seed');
+  const spec = new Proxy({}, {
+    get() {
+      return universal;
+    },
+  });
+
+  const prompt = buildMasterPrompt(spec);
+
+  assert.match(prompt, /\[핵심 구현 체크리스트\]/);
+  assert.match(prompt, /코드를 쓰기 전에 입력 계약을 먼저 정리하세요/);
+  assert.match(prompt, /완료 기준과 검증 항목을 적으세요/);
+});
 
 test('executePromptRepairChain retries with strict_format when experienced output is semantically thin', async () => {
   const prompts = [];

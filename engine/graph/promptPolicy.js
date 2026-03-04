@@ -1,3 +1,8 @@
+import {
+  getCoreChecklistIds,
+  getCoreChecklistPromptLines,
+} from '../../shared/corePromptChecklist.js';
+
 const DEFAULT_POLICY_MODE = 'baseline';
 const KNOWN_POLICY_MODES = new Set([
   'baseline',
@@ -5,7 +10,15 @@ const KNOWN_POLICY_MODES = new Set([
   'strict_format',
   'semantic_repair',
 ]);
-const DEFAULT_SECTION_ORDER = ['role', 'constraints', 'schema', 'goal', 'runtime', 'user_vibe'];
+const DEFAULT_SECTION_ORDER = [
+  'role',
+  'constraints',
+  'schema',
+  'goal',
+  'core_checklist',
+  'runtime',
+  'user_vibe',
+];
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -27,15 +40,7 @@ function applyPositiveRewrite(text) {
     },
     {
       pattern: /\bdo not write long explanations\b/gi,
-      replacement: 'Keep explanations concise and limited to 1~2 sentences',
-    },
-    {
-      pattern: /원문을\s*단순\s*재진술하지\s*마라/gi,
-      replacement: '원문을 구현 가능한 작업 단위로 구체화하라',
-    },
-    {
-      pattern: /설명문을\s*길게\s*쓰지\s*마라/gi,
-      replacement: '설명문은 핵심만 1~2문장으로 간결하게 작성하라',
+      replacement: 'Keep explanations concise and limited to 1-2 sentences',
     },
   ];
 
@@ -87,8 +92,8 @@ function createBasePolicy(mode) {
       sectionOrder: DEFAULT_SECTION_ORDER.slice(),
       constraintLines: [
         'Do not simply paraphrase the user vibe.',
-        '설명문을 길게 쓰지 마라.',
-        'Always include concrete output shape, failure handling, and completion criteria when the request is abstract.',
+        'Do not write long explanations.',
+        'Always keep the response concrete, implementation-ready, and schema-safe.',
       ],
       goalLines: [
         'Convert the user vibe into concrete implementation steps a beginner can execute immediately.',
@@ -108,14 +113,14 @@ function createBasePolicy(mode) {
       constraintLines: [
         'Do not simply paraphrase the user vibe.',
         'Keep the output field order stable and aligned with the provided schema.',
-        'Always include concrete output shape, failure handling, and completion criteria when the request is abstract.',
+        'Always keep the response concrete, implementation-ready, and schema-safe.',
       ],
       goalLines: [
         'Convert the user vibe into an implementation-ready spec with predictable JSON formatting.',
         'Use the example only as a shape hint and keep the actual content grounded in the current request.',
       ],
       exampleLines: [
-        '{"한_줄_요약":"요약","문제정의_5칸":{"누가":"사용자","언제":"상황","무엇을":"행동","왜":"목적","성공기준":"측정 기준"}}',
+        '{"summary":"...","problem_frame":{"who":"...","what":"...","success":"..."}}',
       ],
     };
   }
@@ -137,7 +142,7 @@ function createBasePolicy(mode) {
         'Use the repair checklist as required fixes, not optional suggestions.',
       ],
       exampleLines: [
-        '{"??以??붿빟":"?붿빟","臾몄젣?뺤쓽_5移?:{"?꾧?":"?ъ슜??,"?몄젣":"?곹솴","臾댁뾿??:"?됰룞","??:"紐⑹쟻","?깃났湲곗?":"痢≪젙 湲곗?"}}',
+        '{"summary":"...","problem_frame":{"who":"...","what":"...","success":"..."}}',
       ],
     };
   }
@@ -189,11 +194,15 @@ export function resolvePromptPolicy({ persona = '', mode = '', taskType = '' } =
     basePolicy.goalLines,
     basePolicy.positiveFirst,
   );
+  const coreChecklistIds = getCoreChecklistIds();
 
   return {
     ...basePolicy,
     constraintLines: rewrittenConstraints.lines,
     goalLines: rewrittenGoals.lines,
+    coreChecklistLines: basePolicy.mode === DEFAULT_POLICY_MODE ? [] : getCoreChecklistPromptLines(),
+    coreChecklistIds,
+    coreChecklistDelivery: basePolicy.mode === DEFAULT_POLICY_MODE ? 'baseline_only' : 'force_injected',
     positiveRewriteCount: rewrittenConstraints.count + rewrittenGoals.count,
   };
 }
@@ -235,6 +244,14 @@ export function buildPromptSections({
       content: formatBullets(
         resolvedPolicy.goalLines,
         'Convert the user vibe into a practical, implementation-ready standard output schema.',
+      ),
+    },
+    {
+      id: 'core_checklist',
+      label: 'Core implementation checklist',
+      content: formatBullets(
+        resolvedPolicy.coreChecklistLines,
+        'Lock the input contract, permissions, failure handling, output contract, and acceptance checks before implementation.',
       ),
     },
     {
@@ -291,6 +308,8 @@ export function buildPromptPolicyMeta({
       ? Number(positiveRewriteCount)
       : 0,
     prompt_sections: sectionIds.length ? sectionIds : resolvedPolicy.sectionOrder.slice(),
+    core_checklist_delivery: resolvedPolicy.coreChecklistDelivery,
+    core_checklist_ids: resolvedPolicy.coreChecklistIds.slice(),
     persona: toText(persona),
     source_vibe_length: toText(vibe).length,
   };

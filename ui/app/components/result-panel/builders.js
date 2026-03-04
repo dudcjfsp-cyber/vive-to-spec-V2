@@ -3,7 +3,54 @@ import {
   toObjectArray,
   toStringArray,
   toText,
-} from './utils';
+} from './utils.js';
+
+function buildCopyReadyAiCodingPrompt(prompt) {
+  const source = toText(prompt);
+  if (!source) return '';
+
+  const lines = source.split('\n');
+  const introLines = [];
+  const sections = [];
+  let activeSection = null;
+
+  lines.forEach((line) => {
+    const normalized = toText(line);
+    if (normalized.startsWith('[')) {
+      activeSection = {
+        header: line,
+        lines: [line],
+      };
+      sections.push(activeSection);
+      return;
+    }
+
+    if (!activeSection) {
+      introLines.push(line);
+      return;
+    }
+
+    activeSection.lines.push(line);
+  });
+
+  const coreIndex = sections.findIndex((section) => toText(section.header) === '[핵심 구현 체크리스트]');
+  if (coreIndex < 0) {
+    return source;
+  }
+
+  const excludedIndexes = new Set();
+  if (coreIndex >= 3) excludedIndexes.add(coreIndex - 3);
+  if (coreIndex >= 2) excludedIndexes.add(coreIndex - 2);
+
+  const keptSections = sections
+    .filter((_, idx) => idx <= coreIndex && !excludedIndexes.has(idx))
+    .flatMap((section) => section.lines);
+
+  return [...introLines, ...keptSections]
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export function buildProblemFrame(spec) {
   const frame = isObject(spec?.문제정의_5칸) ? spec.문제정의_5칸 : {};
@@ -102,7 +149,7 @@ export function buildContextOutputs({
   return {
     dev: toText(devSpec) || fallbackDev,
     nondev: toText(nondevSpec) || fallbackNondev,
-    aiCoding: toText(masterPrompt) || fallbackAiCoding,
+    aiCoding: buildCopyReadyAiCodingPrompt(masterPrompt) || fallbackAiCoding,
   };
 }
 

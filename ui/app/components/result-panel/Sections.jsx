@@ -440,15 +440,25 @@ export function L5ActionBinder({
   actionPackPresetId,
   actionPackPresets,
   actionPackExportStatus,
+  validationSeverity = 'low',
+  blockingIssues = [],
   clarifyQuestions = [],
+  clarifyAnswers = {},
+  canSubmitClarifications = false,
+  isProcessing = false,
   canSyncToManualLoop = false,
   onChangeActionPackPreset,
   onCreateActionPack,
   onExportActionPack,
   onSyncToManualLoop,
+  onSetClarifyAnswer,
+  onRemoveClarifyQuestion,
+  onApplyClarifications,
+  onClearClarifyQuestions,
 }) {
   const currentPreset = actionPackPresets.find((preset) => preset.id === actionPackPresetId);
   const hasClarifyQuestions = Array.isArray(clarifyQuestions) && clarifyQuestions.length > 0;
+  const visibleBlockingIssues = Array.isArray(blockingIssues) ? blockingIssues : [];
 
   return (
     <section>
@@ -479,17 +489,80 @@ export function L5ActionBinder({
       {canSyncToManualLoop && (
         <div className="form-group">
           <strong>수동 루프</strong>
+          <div className="signal-pills">
+            <span className="pill">validation: {toText(validationSeverity, 'low')}</span>
+            <span className="pill">blocking: {visibleBlockingIssues.length}</span>
+            <span className="pill">questions: {clarifyQuestions.length}</span>
+          </div>
           <p className="small-muted">
             {hasClarifyQuestions
-              ? `수동 루프 콘솔에서 질문 ${clarifyQuestions.length}개를 바로 검토할 수 있습니다.`
+              ? `수동 루프 안에서 질문 ${clarifyQuestions.length}개를 바로 수정하고 재생성할 수 있습니다.`
               : '아직 준비된 수동 루프 질문이 없습니다.'}
           </p>
+          {visibleBlockingIssues.length > 0 && (
+            <div className="form-group">
+              <strong>차단 이슈</strong>
+              <ul>
+                {visibleBlockingIssues.map((issue, index) => (
+                  <li key={`${issue?.id || issue?.message || 'blocking'}-${index}`}>
+                    {toText(issue?.message, issue?.id || '-')}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {hasClarifyQuestions && (
-            <ol>
+            <div className="form-group">
+              <strong>보완점 입력</strong>
               {clarifyQuestions.map((question, index) => (
-                <li key={`${question}-${index}`}>{question}</li>
+                <div key={`${question}-${index}`} className="form-group">
+                  <label>{question}</label>
+                  <textarea
+                    rows={2}
+                    value={typeof clarifyAnswers?.[question] === 'string' ? clarifyAnswers[question] : ''}
+                    onChange={(event) => {
+                      if (typeof onSetClarifyAnswer === 'function') {
+                        onSetClarifyAnswer(question, event.target.value);
+                      }
+                    }}
+                    placeholder="보완할 정보만 바로 입력하세요"
+                    disabled={isProcessing}
+                  />
+                  <div className="stack-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-mini"
+                      onClick={() => {
+                        if (typeof onRemoveClarifyQuestion === 'function') {
+                          onRemoveClarifyQuestion(question);
+                        }
+                      }}
+                      disabled={isProcessing || typeof onRemoveClarifyQuestion !== 'function'}
+                    >
+                      이 질문 제외
+                    </button>
+                  </div>
+                </div>
               ))}
-            </ol>
+              <div className="stack-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onApplyClarifications}
+                  disabled={isProcessing || typeof onApplyClarifications !== 'function' || !canSubmitClarifications}
+                >
+                  보완 반영 후 재생성
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={onClearClarifyQuestions}
+                  disabled={isProcessing || typeof onClearClarifyQuestions !== 'function' || !hasClarifyQuestions}
+                >
+                  이번 질문 비우기
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -3,6 +3,7 @@ import {
   buildPromptSections,
   resolvePromptPolicy,
 } from './promptPolicy.js';
+import { getCoreChecklistMasterPromptLines } from '../../shared/corePromptChecklist.js';
 import { validateStandardOutput } from '../validation/standardOutputValidation.js';
 
 /**
@@ -763,6 +764,16 @@ function buildDeveloperImplementationChecklistMarkdown(spec) {
   return markdownOrderedList(checklist, '1. 구현 체크리스트 정의 필요');
 }
 
+function buildMasterPromptCoreChecklist(spec) {
+  const checklist = [
+    ...getCoreChecklistMasterPromptLines(),
+    `필수 기능 ${spec[K.FEATURES]?.[K.MUST]?.length || 0}개를 코드로 반영하세요.`,
+    `인계 전에 테스트 시나리오 ${spec[K.TESTS]?.length || 0}개를 확인하세요.`,
+  ];
+
+  return markdownOrderedList(checklist, '1. 코드를 쓰기 전에 입력 계약을 먼저 정리하세요.');
+}
+
 function buildRequestHandoffMarkdown(requests) {
   return [
     '### 표준 요청문',
@@ -899,7 +910,8 @@ function buildDevSpecMarkdown(spec) {
  * "복붙 가능한 마스터 프롬프트"를 만듭니다.
  * 개발 도구(Codex/Claude 등)에 바로 넣어 실행 가능한 형태입니다.
  */
-function buildMasterPrompt(spec) {
+export function buildMasterPrompt(spec) {
+  const coreChecklist = buildMasterPromptCoreChecklist(spec);
   const mustList = markdownOrderedList(spec[K.FEATURES][K.MUST], '1. Must 기능 없음');
   const flowList = markdownOrderedList(spec[K.FLOW], '1. 사용자 흐름 단계 없음');
   const testList = markdownOrderedList(spec[K.TESTS], '1. 테스트 시나리오 없음');
@@ -933,6 +945,9 @@ function buildMasterPrompt(spec) {
     '',
     '[테스트 시나리오 3개]',
     testList,
+    '',
+    '[핵심 구현 체크리스트]',
+    coreChecklist,
     '',
     '[오늘 할 일 3개]',
     nextList,

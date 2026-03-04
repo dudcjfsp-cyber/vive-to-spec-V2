@@ -14,7 +14,7 @@ test('shouldOfferClarificationLoop only enables guided loops when report require
     loopTurn: 0,
     validationReport: {
       needs_clarification: true,
-      suggested_questions: ['질문 1'],
+      suggested_questions: ['Question 1'],
     },
   }), false);
 
@@ -24,7 +24,7 @@ test('shouldOfferClarificationLoop only enables guided loops when report require
     loopTurn: 0,
     validationReport: {
       needs_clarification: true,
-      suggested_questions: ['질문 1'],
+      suggested_questions: ['Question 1'],
     },
   }), true);
 
@@ -34,24 +34,24 @@ test('shouldOfferClarificationLoop only enables guided loops when report require
     loopTurn: 1,
     validationReport: {
       needs_clarification: true,
-      suggested_questions: ['질문 1'],
+      suggested_questions: ['Question 1'],
     },
   }), false);
 });
 
 test('buildClarifiedVibe appends only answered clarification lines', () => {
   const enriched = buildClarifiedVibe(
-    '예약 관리 앱',
-    ['관리자 권한이 필요한가요?', '알림 방식은 무엇인가요?'],
+    'Summarize meeting notes',
+    ['Who can delete records?', 'How should alerts be sent?'],
     {
-      '관리자 권한이 필요한가요?': '관리자와 매장 직원 역할이 필요합니다.',
-      '알림 방식은 무엇인가요?': '',
+      'Who can delete records?': 'Only admins can delete records.',
+      'How should alerts be sent?': '',
     },
   );
 
   assert.equal(
     enriched,
-    '예약 관리 앱\n\n[추가 확정 정보]\n- 관리자 권한이 필요한가요?: 관리자와 매장 직원 역할이 필요합니다.',
+    'Summarize meeting notes\n\n[추가 확정 정보]\n- Who can delete records?: Only admins can delete records.',
   );
 });
 
@@ -78,5 +78,19 @@ test('buildWarningDrivenQuestions prefers warning-specific prompts and suggested
     '삭제 가능한 역할은 누구이고, 삭제 전에 필요한 승인 단계는 무엇인가요?',
     'Question A',
     'Question B',
+  ]);
+});
+
+test('buildWarningDrivenQuestions keeps schema warnings anchored to the clicked warning', () => {
+  const questions = buildWarningDrivenQuestions({
+    warningId: 'schema-1',
+    warningDetail: 'AI 모델의 구체적인 학습 데이터 및 평가 지표에 대한 계획이 부족합니다.',
+    validationReport: {
+      suggested_questions: ['삭제 가능한 역할은 누구인가요?'],
+    },
+  });
+
+  assert.deepEqual(questions, [
+    '이 경고를 해소하려면 다음 부족한 부분을 구체적으로 보완해 주세요: AI 모델의 구체적인 학습 데이터 및 평가 지표에 대한 계획이 부족합니다.',
   ]);
 });

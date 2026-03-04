@@ -22,6 +22,7 @@ export function buildWarningDrivenQuestions({
   maxQuestions = 3,
 } = {}) {
   const normalizedWarningId = toText(warningId);
+  const normalizedWarningDetail = toText(warningDetail);
   const suggestedQuestions = toStringArray(validationReport?.suggested_questions);
   const nextQuestions = [];
 
@@ -34,16 +35,32 @@ export function buildWarningDrivenQuestions({
     const schemaIndex = Number(normalizedWarningId.split('-')[1]);
     if (Number.isInteger(schemaIndex) && suggestedQuestions[schemaIndex]) {
       nextQuestions.push(suggestedQuestions[schemaIndex]);
+    } else {
+      const schemaQuestion = buildSchemaWarningQuestion(normalizedWarningDetail);
+      if (schemaQuestion) {
+        nextQuestions.push(schemaQuestion);
+      }
     }
+
+    return mergeClarificationQuestions([], nextQuestions, maxQuestions);
   }
 
-  if (/question|warning|clarif|missing|spec/i.test(toText(warningDetail))) {
+  if (/question|warning|clarif|missing|spec/i.test(normalizedWarningDetail)) {
     nextQuestions.push(...suggestedQuestions);
   } else if (nextQuestions.length === 0) {
     nextQuestions.push(...suggestedQuestions.slice(0, 2));
   }
 
   return mergeClarificationQuestions([], nextQuestions, maxQuestions);
+}
+
+function buildSchemaWarningQuestion(warningDetail = '') {
+  const detail = toText(warningDetail);
+  if (!detail) {
+    return '이 스키마 경고를 해소하려면 부족한 명세를 구체적으로 보완해 주세요.';
+  }
+
+  return `이 경고를 해소하려면 다음 부족한 부분을 구체적으로 보완해 주세요: ${detail}`;
 }
 
 function toStringArray(value) {

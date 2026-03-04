@@ -244,9 +244,10 @@ export function useAppController({ personaConfig = null } = {}) {
       validationReport,
       maxQuestions: 3,
     });
+    const shouldPrioritizeIncoming = toText(warningContext?.source) === 'result_panel_warning';
     const nextQuestions = mergeClarificationQuestions(
-      clarifyQuestions,
-      warningQuestions,
+      shouldPrioritizeIncoming ? warningQuestions : clarifyQuestions,
+      shouldPrioritizeIncoming ? clarifyQuestions : warningQuestions,
       3,
     );
 

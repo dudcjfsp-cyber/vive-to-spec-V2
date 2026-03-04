@@ -65,6 +65,10 @@ export default function ResultPanel({
   personaCapabilities,
   onRefreshHybrid,
   onSyncWarningToClarify,
+  onSetClarifyAnswer,
+  onRemoveClarifyQuestion,
+  onApplyClarifications,
+  onClearClarifyQuestions,
 }) {
   const safeCapabilities = isObject(personaCapabilities) ? personaCapabilities : {};
   const shouldShowAdvancedPromptPolicyMeta = safeCapabilities.showAdvancedPromptPolicyMeta === true;
@@ -98,6 +102,12 @@ export default function ResultPanel({
     [clarifyLoop],
   );
   const manualLoopQuestionCount = manualLoopQuestions.length;
+  const manualLoopAnswers = isObject(clarifyLoop?.answers) ? clarifyLoop.answers : {};
+  const canSubmitManualLoop = clarifyLoop?.canSubmit === true;
+  const blockingIssues = useMemo(
+    () => Array.isArray(validationReport?.blocking_issues) ? validationReport.blocking_issues : [],
+    [validationReport],
+  );
   const canSyncToManualLoop = typeof onSyncWarningToClarify === 'function';
 
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
@@ -880,12 +890,21 @@ export default function ResultPanel({
               actionPackPresetId={actionPackPresetId}
               actionPackPresets={actionPackPresets}
               actionPackExportStatus={actionPackExportStatus}
+              validationSeverity={validationSeverity}
+              blockingIssues={blockingIssues}
               clarifyQuestions={manualLoopQuestions}
+              clarifyAnswers={manualLoopAnswers}
+              canSubmitClarifications={canSubmitManualLoop}
+              isProcessing={status === 'processing'}
               canSyncToManualLoop={canSyncToManualLoop}
               onChangeActionPackPreset={changeActionPackPreset}
               onCreateActionPack={createActionPack}
               onExportActionPack={exportActionPack}
               onSyncToManualLoop={syncSuggestedQuestionsToManualLoop}
+              onSetClarifyAnswer={onSetClarifyAnswer}
+              onRemoveClarifyQuestion={onRemoveClarifyQuestion}
+              onApplyClarifications={onApplyClarifications}
+              onClearClarifyQuestions={onClearClarifyQuestions}
             />
           )}
           </div>
