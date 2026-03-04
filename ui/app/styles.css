@@ -357,10 +357,23 @@ body::after {
   padding: 16px;
 }
 
+.persona-selector.compact {
+  padding: 14px 16px;
+}
+
+.persona-selector.compact .panel-head {
+  margin-bottom: 10px;
+}
+
 .persona-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 10px;
+}
+
+.persona-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
 }
 
 .persona-card {
@@ -374,10 +387,19 @@ body::after {
   transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
+.persona-card.compact {
+  padding: 11px 12px;
+}
+
 .persona-card strong {
   display: block;
   margin-bottom: 6px;
   font-size: 16px;
+}
+
+.persona-card.compact strong {
+  margin-bottom: 4px;
+  font-size: 14px;
 }
 
 .persona-card span {
@@ -385,10 +407,33 @@ body::after {
   font-size: 13px;
 }
 
+.persona-card.compact span {
+  font-size: 12px;
+}
+
 .persona-card:hover {
   transform: translateY(-1px);
   border-color: var(--line-strong);
   box-shadow: 0 0 18px rgba(72, 247, 255, 0.2);
+}
+
+.persona-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
+  box-shadow: none;
+}
+
+.persona-card.is-active {
+  border-color: rgba(72, 247, 255, 0.74);
+  background:
+    radial-gradient(circle at 85% 18%, rgba(72, 247, 255, 0.14), transparent 26%),
+    rgba(6, 26, 54, 0.9);
+  box-shadow: 0 0 18px rgba(72, 247, 255, 0.16);
+}
+
+.persona-pending {
+  padding: 16px;
 }
 
 .beginner-workspace {

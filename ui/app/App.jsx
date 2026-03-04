@@ -13,12 +13,14 @@ function renderApiKeyGate({
   state,
   derived,
   actions,
+  activePersona,
 }) {
+  const selectedLabel = activePersona?.label || '원하는 세션';
   return (
     <section className="panel api-key-gate">
       <div className="panel-head">
-        <h2>1단계: API 키 연결</h2>
-        <p>모드 선택 전에 API 키를 먼저 등록해야 변환을 시작할 수 있습니다.</p>
+        <h2>API 키 연결</h2>
+        <p>{selectedLabel} 화면으로 바로 이어서 진입할 수 있도록 먼저 API 키를 연결합니다.</p>
       </div>
       <div className="control-grid">
         <div className="form-group">
@@ -42,7 +44,7 @@ function renderApiKeyGate({
         </button>
       </div>
       <p className="small-muted">
-        API 키를 저장하면 바로 수준 선택 화면으로 이동합니다.
+        API 키를 저장하면 현재 선택한 세션으로 바로 이어집니다.
       </p>
     </section>
   );
@@ -94,10 +96,12 @@ export default function App() {
   ]);
 
   const handleSelectPersona = (nextPersonaId) => {
+    if (state.status === 'processing') return;
     setPersonaId(nextPersonaId);
   };
 
   const handleResetPersona = () => {
+    if (state.status === 'processing') return;
     setPersonaId('');
     setIsBeginnerAdvancedOpen(false);
   };
@@ -109,31 +113,56 @@ export default function App() {
           <p className="eyebrow">뉴럴 드래프트 콘솔</p>
           <h1>Vibe-to-Spec V2</h1>
           <p className="header-copy">
-            {isBeginnerWorkspace
-              ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
-              : '아이디어를 실행 가능한 스펙으로 변환하는 AX 계획 코크핏.'}
+            {activePersona
+              ? (isBeginnerWorkspace
+                ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
+                : '아이디어를 실행 가능한 스펙으로 변환하는 AX 계획 코크핏.')
+              : '세션을 먼저 고르고, 바로 같은 화면에서 API 연결과 작업 시작까지 이어집니다.'}
           </p>
         </div>
         <div className="header-meta">
           <span className="status-chip">
-            {hasApiKey ? (activePersona?.label || '시작 모드 선택 필요') : 'API 키 연결 필요'}
+            세션: {activePersona?.label || '선택 전'}
+          </span>
+          <span className={`status-chip ${hasApiKey ? '' : 'muted'}`}>
+            API: {hasApiKey ? providerLabel : '연결 필요'}
           </span>
           <span className="status-chip muted">상태 복원 활성화</span>
-          {hasApiKey && activePersona && (
-            <button type="button" className="btn btn-ghost btn-mini" onClick={handleResetPersona}>
-              모드 다시 선택
+          {activePersona && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-mini"
+              onClick={handleResetPersona}
+              disabled={state.status === 'processing'}
+            >
+              세션 해제
             </button>
           )}
         </div>
       </header>
 
-      {!hasApiKey && renderApiKeyGate({ state, derived, actions })}
+      <PersonaSelector
+        presets={PERSONA_PRESETS}
+        selectedPersonaId={activePersona?.id || ''}
+        compact={Boolean(activePersona)}
+        disabled={state.status === 'processing'}
+        onSelectPersona={handleSelectPersona}
+      />
+
+      {!hasApiKey && renderApiKeyGate({
+        state,
+        derived,
+        actions,
+        activePersona,
+      })}
 
       {hasApiKey && !activePersona && (
-        <PersonaSelector
-          presets={PERSONA_PRESETS}
-          onSelectPersona={handleSelectPersona}
-        />
+        <section className="panel persona-pending">
+          <div className="panel-head">
+            <h2>세션을 선택해 계속</h2>
+            <p>위에서 입문자, 경험자, 전공자 중 하나를 고르면 같은 상태를 유지한 채 바로 작업 화면으로 전환됩니다.</p>
+          </div>
+        </section>
       )}
 
       {hasApiKey && activePersona && isBeginnerWorkspace && (

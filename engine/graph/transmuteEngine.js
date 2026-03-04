@@ -834,9 +834,6 @@ function buildNonDevSpecMarkdown(spec) {
     `- 완성도 점수: ${spec[K.COMPLETENESS][K.SCORE]} / 100`,
     '- 누락 경고',
     markdownList(spec[K.COMPLETENESS][K.WARNINGS]),
-    '',
-    '## 참고: L1~L5 레이어',
-    buildLayerGuideMarkdown(spec[K.LAYER_GUIDE]),
   ].join('\n');
 }
 

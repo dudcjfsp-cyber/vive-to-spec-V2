@@ -13,6 +13,15 @@ import {
   toText,
 } from './utils';
 
+function stripLegacyLayerGuideSection(value) {
+  const source = toText(value);
+  if (!source) return '';
+
+  return source
+    .replace(/\n## 참고: L1~L5 레이어[\s\S]*$/u, '')
+    .trim();
+}
+
 export function TextBlock({ title, value }) {
   return (
     <section className="text-block">
@@ -309,7 +318,9 @@ export function L3ContextOptimizer({
           <div key={target.id}>
             <strong>{target.title}</strong>
             <pre className="mono-block">
-              {contextOutputs[target.id] || '-'}
+              {target.id === 'nondev'
+                ? (stripLegacyLayerGuideSection(contextOutputs[target.id]) || '-')
+                : (contextOutputs[target.id] || '-')}
             </pre>
           </div>
         ) : null
