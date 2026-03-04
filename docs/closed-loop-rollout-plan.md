@@ -1,6 +1,6 @@
 # Persona-Based Closed Loop Rollout Plan
 
-- Updated: 2026-03-03
+- Updated: 2026-03-04
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Status: In progress
 - Goal: 입문자 one-shot 완성 경험은 유지하고, 경험자/전공자부터 폐루프(검증 -> 보완 질문 -> 재생성)를 단계적으로 도입한다.
@@ -10,35 +10,41 @@
 - Week 1: done
 - Week 2: done
 - Week 3: done (experience mode guided loop v1 connected)
-- Week 4: in progress (major mode manual loop console now syncs with ResultPanel L4/L5 actions)
+- Week 4: in progress (major mode manual loop console, L4/L5 sync, and L1 focus handoff are connected)
 - Controller refactor: done (generation/regeneration flow helpers extracted)
 - Week 5: in progress (strict_format + semantic_repair fallback chain landed in engine)
 - Week 6+: pending
 
 ### 0.1 Latest Progress Snapshot
 
-이번 진행에서 반영된 항목:
+현재 기준으로 이미 반영된 핵심 항목:
 
-1. `engine/validation/standardOutputValidation.js`
-- 표준 출력 검증을 전용 모듈로 분리
-- `validation_report` 생성 시작
+1. Week 1 ~ Week 3 완료
+- 상태 스키마 확장, validation 계층 분리, 경험자 guided loop v1 연결 완료
 
-2. `ui/app/services/clarifyLoop.js`
-- 보완 질문 진입 판단과 보강 입력 병합 로직 분리
+2. Week 4 진행 상태
+- 전공자 `Manual Loop Console`이 동작한다
+- `ResultPanel` L4 경고 카드에서 질문을 수동 루프로 보낼 수 있다
+- `ResultPanel` L5에서 staging된 수동 루프 질문을 확인/동기화할 수 있다
+- L4에서 L1로 내려올 때 강조 필드와 추천 가설 미리보기가 연결된다
 
-3. `ui/app/services/transmuteFlow.js`
-- 생성/재생성 흐름의 shadow payload 조립과 loop 계획 계산을 순수 함수로 분리
+3. Week 5 진행 상태
+- `experienced` / `major` 경로에서 `strict_format` -> `semantic_repair` 폴백 체인이 엔진에 연결됐다
+- repair 관련 메타(`repair_mode`, `fallback_applied`, `validation_retry_count`, `semantic_issue_count`)가 반환된다
 
-4. 경험자/전공자 UI 연결
-- 경험자: 가이드형 1회 재생성
-- 전공자: 수동 질문 제외 / 스킵 / 재생성 콘솔
+4. Beginner UX 보정
+- 입문자 `바로 실행 프롬프트`는 L3의 `AI 코딩용 (실행 프롬프트)`와 같은 소스를 사용한다
+- 자동 보강은 프롬프트 본문에 직접 주입하지 않고, 경고 박스로 분리해 보여준다
+- 복사 성공 시 버튼 자체가 `복사 완료`로 바뀐다
 
-### 0.2 2026-03-03 Addendum
+### 0.2 2026-03-04 Addendum
 
-- `ResultPanel` L4 warning actions can now push targeted questions into the major manual loop set.
-- `ResultPanel` L5 now shows the staged manual-loop questions and can sync suggested questions before regenerate.
-- `engine/graph/transmuteEngine.js` now retries `experienced` and `major` outputs through `strict_format`, then `semantic_repair`, and records repair metadata.
-- Tests were expanded for the new clarify-merge helpers and prompt fallback chain.
+- `ResultPanel` L1 recommended hypothesis flow now distinguishes between:
+  - actual overwrite candidates
+  - no-op states that still require direct user edits
+- When no automatic suggestion diff exists, the L1 button switches to `직접 수정 필요` and is disabled.
+- Beginner mode now exposes the L3-derived AI coding prompt directly instead of preferring the converted standard request text.
+- Beginner mode shows prompt-risk guidance above the prompt card and uses button-state feedback (`복사 완료`) for successful prompt copy.
 
 ## 1. Why This Document Exists
 
@@ -172,6 +178,7 @@
 
 5. UI
 - `ui/app/components/BeginnerWorkspace.jsx`
+- `ui/app/components/beginner-prompt.js`
 - `ui/app/components/ExperiencedWorkspace.jsx`
 - `ui/app/components/MajorWorkspace.jsx`
 - `ui/app/components/ResultPanel.jsx`
@@ -404,12 +411,20 @@
 
 ## 7. Practical Next Step
 
-이 문서를 기준으로 바로 시작할 첫 구현은 `Week 1`이다.
+다음 작업은 새로운 폐루프 UI 추가보다, 프롬프트 강제 기준을 정리하는 쪽이 우선이다.
 
-첫 세션 권장 범위:
+다음 세션 권장 범위:
 
-1. `ui/app/persona/presets.js`
-2. `engine/state/specState.js`
-3. `ui/app/services/specStateShadow.js`
+1. `engine/graph/promptPolicy.js`
+2. `engine/graph/transmuteEngine.js`
+3. `ui/app/components/beginner-prompt.js`
+4. 필요 시 `docs/prompt-policy-plan.md`
 
-이 세션에서는 UI를 바꾸지 말고, 상태와 capability만 먼저 확장한다.
+목표:
+
+1. 코드 작성 시 반드시 고려해야 할 공통 코어 체크리스트를 정의한다.
+2. 무엇을 엔진 프롬프트에 강제 주입할지 정한다.
+3. 무엇을 입문자 경고로만 노출할지 정한다.
+4. `buildMasterPrompt`와 입문자 경고가 서로 충돌하지 않게 정리한다.
+
+즉, 다음 세션은 `prompt hardening policy` 설계/적용 세션으로 여는 것이 맞다.

@@ -1,6 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActionPriorityLegend, PriorityActionList } from './PriorityActionList';
 import { buildBeginnerQuickPrompt } from './beginner-prompt';
+import {
+  buildContextOutputs,
+  buildLogicMap,
+  buildProblemFrame,
+} from './result-panel/builders.js';
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -37,7 +42,8 @@ export default function BeginnerWorkspace({
   isAdvancedOpen,
   onToggleAdvanced,
 }) {
-  const [copyStatus, setCopyStatus] = useState('');
+  const [copyStatus, setCopyStatus] = useState('idle');
+  const [copyMessage, setCopyMessage] = useState('');
 
   const todayActions = useMemo(
     () => toStringArray(standardOutput?.오늘_할_일_3개),
@@ -49,9 +55,16 @@ export default function BeginnerWorkspace({
   );
 
   const quickPromptSource = useMemo(() => {
-    const converted = toText(standardOutput?.수정요청_변환?.표준_요청);
-    if (converted) return converted;
-    return toText(masterPrompt);
+    const hypothesis = buildProblemFrame(standardOutput || {});
+    const logicMap = buildLogicMap(standardOutput || {}, hypothesis);
+    const contextOutputs = buildContextOutputs({
+      devSpec: '',
+      nondevSpec: '',
+      masterPrompt,
+      hypothesis,
+      logicMap,
+    });
+    return toText(contextOutputs.aiCoding);
   }, [masterPrompt, standardOutput]);
   const quickPromptBundle = useMemo(
     () => buildBeginnerQuickPrompt({
@@ -60,8 +73,12 @@ export default function BeginnerWorkspace({
     }),
     [vibe, quickPromptSource],
   );
-  const quickPrompt = quickPromptBundle.prompt;
+  const quickPrompt = quickPromptSource;
   const quickPromptMeta = quickPromptBundle.meta;
+  const quickPromptGaps = Array.isArray(quickPromptMeta.addedRequirements)
+    ? quickPromptMeta.addedRequirements
+    : [];
+  const shouldWarnPromptGaps = quickPromptMeta.isEnhanced && quickPromptGaps.length > 0;
   const promptPolicyMode = toText(promptPolicyMeta?.prompt_policy_mode, 'baseline');
   const promptExampleMode = toText(promptPolicyMeta?.example_mode, 'none');
   const promptSectionOrder = useMemo(
@@ -73,17 +90,25 @@ export default function BeginnerWorkspace({
     : 0;
   const isPolicyApplied = Boolean(promptPolicyMeta?.policy_applied);
 
+  useEffect(() => {
+    setCopyStatus('idle');
+    setCopyMessage('');
+  }, [quickPrompt]);
+
   const handleCopyPrompt = async () => {
     if (!quickPrompt) return;
     if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
-      setCopyStatus('클립보드를 사용할 수 없어 화면 텍스트를 직접 복사해 주세요.');
+      setCopyStatus('error');
+      setCopyMessage('클립보드를 사용할 수 없어 화면 텍스트를 직접 복사해 주세요.');
       return;
     }
     try {
       await navigator.clipboard.writeText(quickPrompt);
-      setCopyStatus('실행 프롬프트를 복사했습니다.');
+      setCopyStatus('success');
+      setCopyMessage('');
     } catch {
-      setCopyStatus('복사에 실패했습니다. 다시 시도해 주세요.');
+      setCopyStatus('error');
+      setCopyMessage('복사에 실패했습니다. 다시 시도해 주세요.');
     }
   };
 
@@ -191,7 +216,34 @@ export default function BeginnerWorkspace({
           </section>
 
           <section className="beginner-result-card">
+            <h3>먼저 확인할 점</h3>
+            <ul>
+              {(topWarnings.length ? topWarnings : ['현재 차단 경고는 감지되지 않았습니다. 바로 실행해도 됩니다.'])
+                .slice(0, 2)
+                .map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
+            </ul>
+          </section>
+
+          <section className="beginner-result-card">
             <h3>바로 실행 프롬프트</h3>
+            <div className="stack-actions">
+              <button type="button" className="btn btn-secondary" onClick={handleCopyPrompt} disabled={!quickPrompt}>
+                {copyStatus === 'success' ? '복사 완료' : '실행 프롬프트 복사'}
+              </button>
+            </div>
+            {shouldWarnPromptGaps && (
+              <div className="attention-banner urgency-yellow">
+                <div className="attention-banner-head">
+                  <strong>보완할 점이 있습니다</strong>
+                </div>
+                <p>이 프롬프트를 그대로 입력하면 의도와 다른 형태로 결과가 만들어질 가능성이 있습니다.</p>
+                <ul>
+                  {quickPromptGaps.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {showPromptPolicyMeta && (
               <div className="prompt-meta-row">
                 <span className={`value-chip ${isPolicyApplied ? 'enhanced' : 'muted'}`}>
@@ -209,10 +261,10 @@ export default function BeginnerWorkspace({
               <span className={`value-chip ${quickPromptMeta.nearParaphrase ? 'warning' : 'pass'}`}>
                 원문 유사도 {Math.round(quickPromptMeta.similarity * 100)}%
               </span>
-              <span className={`value-chip ${quickPromptMeta.isEnhanced ? 'enhanced' : 'muted'}`}>
-                {quickPromptMeta.isEnhanced
-                  ? `자동 보강 +${quickPromptMeta.addedItemCount}`
-                  : '자동 보강 없음'}
+              <span className={`value-chip ${shouldWarnPromptGaps ? 'warning' : 'pass'}`}>
+                {shouldWarnPromptGaps
+                  ? `보완 항목 ${quickPromptGaps.length}개`
+                  : '보완 항목 없음'}
               </span>
             </div>
             {showPromptPolicyMeta && promptSectionOrder.length > 0 && (
@@ -221,26 +273,7 @@ export default function BeginnerWorkspace({
               </p>
             )}
             <pre className="mono-block">{quickPrompt || '생성된 프롬프트가 없습니다.'}</pre>
-            <div className="stack-actions">
-              <button type="button" className="btn btn-secondary" onClick={handleCopyPrompt} disabled={!quickPrompt}>
-                실행 프롬프트 복사
-              </button>
-            </div>
-            {quickPromptMeta.isEnhanced && (
-              <p className="small-muted">
-                원문과 유사한 요청이라 입문자 누락 가능성이 큰 항목을 자동 추가했습니다.
-              </p>
-            )}
-            {copyStatus && <p className="small-muted">{copyStatus}</p>}
-          </section>
-
-          <section className="beginner-result-card">
-            <h3>먼저 확인할 점</h3>
-            <ul>
-              {(topWarnings.length ? topWarnings : ['현재 차단 경고는 감지되지 않았습니다. 바로 실행해도 됩니다.'])
-                .slice(0, 2)
-                .map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
-            </ul>
+            {copyMessage && <p className="small-muted">{copyMessage}</p>}
           </section>
         </div>
       )}

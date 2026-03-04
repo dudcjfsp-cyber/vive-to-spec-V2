@@ -1,106 +1,107 @@
 # Session Handoff (Latest)
 
-- Updated: 2026-03-03
+- Updated: 2026-03-04
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
-- HEAD: `9d302e9` (`feat: add persona onboarding and beginner prompt enrichment`)
-- Git status: dirty (modified + untracked files, no commit in this run)
+- Scope: closed-loop UX stabilization + beginner prompt UX alignment
 
-## Latest Session Delta
+## Current Status
 
-- Week 4 remains in progress, but major mode now syncs `ResultPanel` L4 warning actions and L5 staging with the manual loop question set.
-- Week 5 fallback work has started: `experienced` and `major` generations now retry through `strict_format` and `semantic_repair` when semantic gaps remain.
-- Updated verification in this session: `cmd /c npm test` (52 passed) and `cmd /c npm run build` both succeeded.
+- Week 1: done
+- Week 2: done
+- Week 3: done
+- Week 4: in progress
+- Week 5: in progress
 
-## Completed In This Run
+현재 기준으로 다음 상태가 코드에 반영되어 있다.
 
-1. Week 1 상태 기반 확장 완료
-- `engine/state/specState.js`를 v2로 확장
-- `clarification_answers`, `pending_questions`, `last_validation`, `loop_turn`, `last_generation_id` 추가
-- `ui/app/services/specStateShadow.js`에서 폐루프 상태 필드 shadow write 지원
-- 테스트 추가:
-  - `engine/state/specState.test.js`
-  - `ui/app/services/specStateShadow.test.js`
+1. 경험자 guided loop v1 연결 완료
+2. 전공자 manual loop console 연결 완료
+3. `useAppController`의 1차 transmute/regenerate flow 분리 완료
+4. 경험자/전공자 엔진 경로에 `strict_format` -> `semantic_repair` 폴백 체인 연결 완료
+5. L4/L5 경고 액션과 전공자 수동 루프 질문 세트 동기화 연결 완료
 
-2. Week 2 검증 계층 분리 완료
-- `engine/validation/standardOutputValidation.js` 신설
-- 누락 경고/점수 계산을 엔진 본문에서 분리
-- `validation_report` 반환 시작:
-  - `score`
-  - `warnings`
-  - `blocking_issues`
-  - `severity`
-  - `can_auto_proceed`
-  - `suggested_questions`
-  - `needs_clarification`
-- `engine/validation/standardOutputValidation.test.js` 추가
+## What Changed Recently
 
-3. Week 3 경험자 폐루프 v1 연결
-- `ui/app/services/clarifyLoop.js` 신설
-- 경험자 경로에서 검증 결과 기반 보완 질문 1회 재생성 흐름 연결
-- `ui/app/components/ExperiencedWorkspace.jsx`에 보완 질문 후 재생성 카드 추가
+### 1. Closed-loop bridge deepened
 
-4. Week 4 전공자 수동 루프 콘솔 연결(진행 중)
-- `ui/app/components/MajorWorkspace.jsx`에 manual loop console 추가
-- 질문 제외 / 이번 질문 건너뛰기 / 수동 재생성 버튼 연결
-- `ui/app/components/ResultPanel.jsx`에 `Validation Report` 패널 추가
+- `ResultPanel`의 L4 경고 카드에서 `수동 루프로 보내기`가 전공자 manual loop 질문 세트와 직접 연결된다.
+- L5 실행 바인더에서 현재 staging된 수동 루프 질문을 확인하고 추천 질문을 동기화할 수 있다.
+- 수동 루프 관련 버튼/안내/질문 문구는 한국어로 정리됐다.
 
-5. Controller 오케스트레이션 1차 정리
-- `ui/app/services/transmuteFlow.js` 신설
-- 생성/재생성의 loop 계획 계산과 shadow payload 조립을 순수 함수로 분리
-- `ui/app/hooks/useAppController.js`는 상태 연결과 side effect 중심으로 축소 시작
-- `ui/app/services/transmuteFlow.test.js` 추가
+핵심 파일:
 
-## Added / Updated Key Files
-
-- `engine/graph/promptPolicy.js`
-- `engine/graph/promptPolicy.test.js`
-- `engine/graph/transmuteEngine.js`
-- `engine/graph/transmuteEngine.test.js`
-- `engine/validation/standardOutputValidation.js`
-- `engine/validation/standardOutputValidation.test.js`
-- `engine/state/specState.js`
-- `engine/state/specState.test.js`
-- `ui/app/hooks/useAppController.js`
-- `ui/app/App.jsx`
-- `ui/app/components/BeginnerWorkspace.jsx`
-- `ui/app/components/ExperiencedWorkspace.jsx`
-- `ui/app/components/MajorWorkspace.jsx`
 - `ui/app/components/ResultPanel.jsx`
 - `ui/app/components/result-panel/Sections.jsx`
+- `ui/app/components/MajorWorkspace.jsx`
+- `ui/app/hooks/useAppController.js`
 - `ui/app/services/clarifyLoop.js`
-- `ui/app/services/clarifyLoop.test.js`
-- `ui/app/services/transmuteFlow.js`
-- `ui/app/services/transmuteFlow.test.js`
-- `ui/app/services/specStateShadow.js`
-- `ui/app/services/specStateShadow.test.js`
-- `docs/closed-loop-rollout-plan.md`
-- `docs/handoff/latest.md`
+
+### 2. Engine fallback quality stabilized
+
+- `engine/graph/promptPolicy.js`에 `semantic_repair` 정책이 추가됐다.
+- `engine/graph/transmuteEngine.js`에서 `experienced` / `major` 생성 결과가 의미적으로 빈약할 때:
+  1. `strict_format`
+  2. 필요 시 `semantic_repair`
+  순서로 재시도한다.
+- 결과 meta에 아래 값이 남는다.
+  - `repair_mode`
+  - `fallback_applied`
+  - `validation_retry_count`
+  - `semantic_issue_count`
+
+핵심 파일:
+
+- `engine/graph/promptPolicy.js`
+- `engine/graph/transmuteEngine.js`
+
+### 3. L1 suggested hypothesis UX stabilized
+
+- `추천 가설 보기`는 실제로 바뀔 값만 미리보기로 보여준다.
+- 자동 추천 diff가 없으면:
+  - 안내 문구는 `자동으로 덮어쓸 추천값은 없지만, 강조된 필드는 직접 보완이 필요합니다.`
+  - 버튼은 `직접 수정 필요`로 바뀌고 비활성화된다.
+- 즉, L4에서 L1로 내려온 경우 no-op처럼 보이던 상태를 명시적인 수동 보완 상태로 드러낸다.
+
+핵심 파일:
+
+- `ui/app/components/ResultPanel.jsx`
+- `ui/app/components/result-panel/Sections.jsx`
+- `ui/app/components/result-panel/intelligence.js`
+
+### 4. Beginner prompt view now mirrors L3 intent
+
+- 입문자 `바로 실행 프롬프트`는 더 이상 `표준 요청문` 우선값을 보여주지 않는다.
+- 이제 L3와 같은 계산 경로(`buildProblemFrame` -> `buildLogicMap` -> `buildContextOutputs().aiCoding`)를 사용한다.
+- 프롬프트 본문을 자동으로 덧붙여 수정하지 않고, 부족한 항목은 경고 박스로 분리한다.
+- `먼저 확인할 점` 카드는 프롬프트 카드보다 위로 이동했다.
+- 복사 성공 시 버튼 라벨이 `복사 완료`로 바뀌며, 실패 시에만 별도 오류 문구를 표시한다.
+
+핵심 파일:
+
+- `ui/app/components/BeginnerWorkspace.jsx`
+- `ui/app/components/beginner-prompt.js`
+- `ui/app/components/result-panel/builders.js`
 
 ## Validation
 
-- `cmd /c npm test` 성공 (46 passed)
+- `cmd /c npm test` 성공 (53 passed)
 - `cmd /c npm run build` 성공
 
-## Latest Validation
+## Known Boundaries
 
-- `cmd /c npm test` succeeded (52 passed)
-- `cmd /c npm run build` succeeded
+- 브라우저 수동 검증은 사용자가 직접 진행 중이며, 자동화된 UI E2E 테스트는 아직 없다.
+- `transmuteEngine.js`와 `useAppController.js`는 여전히 크기가 커서, 다음 구조 정리 대상이다.
 
-## Git
+## Recommended Next Session
 
-- Commit: none
-- HEAD unchanged: `9d302e9`
-- Working tree contains local changes for prompt policy migration
+다음 세션의 첫 작업은 아래 주제로 시작하는 것이 맞다.
 
-## Session End State
+1. 코드 작성 시 반드시 고려할 항목(입력 조건, 예외 처리, 권한, 완료 기준, 테스트 등)의 공통 코어 체크리스트를 정의
+2. 이를 아래 세 계층에 어떻게 나눠 반영할지 결정
+   - `engine/graph/promptPolicy.js`
+   - `engine/graph/transmuteEngine.js`의 `buildMasterPrompt`
+   - `ui/app/components/beginner-prompt.js`
+3. “강제 주입”과 “경고만 노출”의 경계를 정한 뒤 적용
 
-- 개발 서버는 실행하지 않음
-- 워킹트리 dirty 유지(사용자 요청대로 미커밋)
-- 참고: `docs/prompt-policy-plan.md`는 현재도 추적 전(untracked) 계획 문서 상태
-
-## Suggested Next Session Focus
-
-1. 전공자 수동 루프를 `ResultPanel` L4/L5 액션과 더 깊게 연결
-2. 경험자/전공자 루프를 `strict_format` 및 semantic repair 폴백과 연결
-3. `useAppController`에서 남은 transmute/hybrid 흐름도 추가 분리해 훅을 더 슬림하게 정리
+요약하면, 다음 세션은 UI 미세조정보다 `prompt hardening policy` 설계/적용 세션으로 잡는 편이 안전하다.
