@@ -181,17 +181,16 @@ export function L1HypothesisEditor({
         <button
           type="button"
           className="btn btn-secondary"
+          disabled={suggestionPreviewOpen && !hasPreviewDiff}
           onClick={suggestionPreviewOpen ? onApplySuggestedHypothesis : onPreviewSuggestedHypothesis}
         >
-          {suggestionPreviewOpen ? '추천 가설 적용' : '추천 가설 보기'}
+          {suggestionPreviewOpen
+            ? (hasPreviewDiff ? '추천 가설 적용' : '직접 수정 필요')
+            : '추천 가설 보기'}
         </button>
         <button type="button" className="btn btn-primary" onClick={onConfirmHypothesis}>
           가설 확정
         </button>
-        <div style={{ display: 'none' }}>
-        <button type="button" className="btn btn-secondary" onClick={onApplySuggestedHypothesis}>추천 가설 적용</button>
-        <button type="button" className="btn btn-primary" onClick={onConfirmHypothesis}>가설 확정</button>
-        </div>
       </div>
       {l1Intelligence.questions.length > 0 && (
         <div>
