@@ -58,7 +58,7 @@ test('buildL1Intelligence keeps current values while exposing inferred alternati
   const result = buildL1Intelligence({ vibeText, hypothesis });
 
   assert.equal(result.suggestedHypothesis.what, hypothesis.what);
-  assert.equal(result.inferredHypothesis.what, 'MSDS PDF 내용을 추출해서 요약하고, 위험 문구만 따로 체크하는 사내 도구를 만들고 싶어');
+  assert.equal(result.inferredHypothesis.what, 'MSDS PDF 내용을 추출해서 요약하고, 위험 문구만 따로 체크하는 사내 도구');
   assert.notEqual(result.inferredHypothesis.what, result.suggestedHypothesis.what);
 });
 
