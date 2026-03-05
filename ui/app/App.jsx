@@ -110,13 +110,13 @@ export default function App() {
     <main className="app-shell">
       <header className="app-header panel">
         <div>
-          <p className="eyebrow">뉴럴 드래프트 콘솔</p>
+          <p className="eyebrow">학습 스펙 워크스페이스</p>
           <h1>Vibe-to-Spec V2</h1>
           <p className="header-copy">
             {activePersona
               ? (isBeginnerWorkspace
                 ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
-                : '아이디어를 실행 가능한 스펙으로 변환하는 AX 계획 코크핏.')
+                : '아이디어를 실행 가능한 스펙으로 단계별 정리하는 교육형 워크스페이스.')
               : '세션을 먼저 고르고, 바로 같은 화면에서 API 연결과 작업 시작까지 이어집니다.'}
           </p>
         </div>

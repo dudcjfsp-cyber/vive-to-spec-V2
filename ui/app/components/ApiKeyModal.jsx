@@ -21,7 +21,7 @@ export default function ApiKeyModal({
           onChange={(event) => onTempKeyChange(event.target.value)}
           placeholder="API 키를 붙여넣으세요"
         />
-        <div className="stack-actions form-group">
+        <div className="stack-actions form-group api-key-modal-actions">
           <button type="button" className="btn btn-primary" onClick={onSave}>저장</button>
           <button type="button" className="btn btn-ghost" onClick={onClose}>닫기</button>
         </div>

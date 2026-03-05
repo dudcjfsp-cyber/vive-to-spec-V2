@@ -226,7 +226,7 @@ export default function BeginnerWorkspace({
 
           <section className="beginner-result-card">
             <h3>바로 실행 프롬프트</h3>
-            <div className="stack-actions">
+            <div className="stack-actions quick-prompt-actions">
               <button type="button" className="btn btn-secondary" onClick={handleCopyPrompt} disabled={!quickPrompt}>
                 {copyStatus === 'success' ? '복사 완료' : '실행 프롬프트 복사'}
               </button>

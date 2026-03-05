@@ -33,7 +33,6 @@ import {
   L4IntegritySimulator,
   L5ActionBinder,
   LayerTabButton,
-  TextBlock,
 } from './result-panel/Sections';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
@@ -77,7 +76,6 @@ export default function ResultPanel({
   const shouldShowAdvancedPromptPolicyMeta = safeCapabilities.showAdvancedPromptPolicyMeta === true;
   const shouldShowLayerPanels = safeCapabilities.showLayerPanels !== false;
   const shouldShowCtaHistory = safeCapabilities.showCtaHistory !== false;
-  const shouldShowLegacyArtifacts = safeCapabilities.showLegacyArtifacts !== false;
   const shouldShowIntegrityWarningsExpanded = safeCapabilities.showIntegrityWarningsExpanded !== false;
   const isCompactIntegrityView = !shouldShowIntegrityWarningsExpanded;
   const promptSections = useMemo(
@@ -861,7 +859,7 @@ export default function ResultPanel({
       )}
 
       {shouldShowAdvancedPromptPolicyMeta && (
-        <section className="panel">
+        <section className="panel result-meta-panel">
           <h2>Prompt Policy</h2>
           <div className="signal-pills">
             <span className="pill">mode: {promptPolicyMode}</span>
@@ -876,7 +874,7 @@ export default function ResultPanel({
       )}
 
       {shouldShowValidationMeta && validationReport && (
-        <section className="panel">
+        <section className="panel result-meta-panel">
           <h2>Validation Report</h2>
           <div className="signal-pills">
             <span className="pill">severity: {validationSeverity}</span>
@@ -1023,15 +1021,6 @@ export default function ResultPanel({
           entries={ctaHistory}
           onRollback={rollbackToHistory}
         />
-      )}
-
-      {shouldShowLegacyArtifacts && (
-        <details className="legacy-details">
-          <summary>기존 산출물 보기</summary>
-          <TextBlock title="Non-dev Spec" value={nondevSpec} />
-          <TextBlock title="Dev Spec" value={devSpec} />
-          <TextBlock title="Master Prompt" value={masterPrompt} />
-        </details>
       )}
     </section>
   );

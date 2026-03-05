@@ -65,7 +65,6 @@ test('resolvePersonaCapabilities returns normalized capability flags', () => {
   assert.equal(capabilities.showPromptPolicyMeta, true);
   assert.equal(capabilities.allowBeginnerAdvancedToggle, true);
   assert.equal(capabilities.defaultBeginnerAdvancedOpen, false);
-  assert.equal(capabilities.showLegacyArtifacts, true);
   assert.equal(capabilities.loopMode, 'off');
   assert.equal(capabilities.maxClarifyTurns, 0);
   assert.equal(fallbackCapabilities.showPromptPolicyMeta, false);

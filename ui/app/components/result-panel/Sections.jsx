@@ -22,15 +22,6 @@ function stripLegacyLayerGuideSection(value) {
     .trim();
 }
 
-export function TextBlock({ title, value }) {
-  return (
-    <section className="text-block">
-      <h3>{title}</h3>
-      <pre className="mono-block">{value || '-'}</pre>
-    </section>
-  );
-}
-
 export function LayerTabButton({ tab, activeLayer, onSelect }) {
   const isActive = activeLayer === tab.id;
   return (
