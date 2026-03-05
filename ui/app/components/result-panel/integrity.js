@@ -223,7 +223,7 @@ export function buildWarnings({
     const severity = l2Intelligence.overallScore < 55 ? 'high' : 'medium';
     items.push(createScoredWarning({
       id: 'data-flow-alignment',
-      title: 'Data-Flow Alignment',
+      title: '데이터 흐름 정합성',
       detail: `L2 합성 ${l2Intelligence.overallScore}, 정합성 ${l2Intelligence.alignmentScore}. 축 간 동기화 점검이 필요합니다.`,
       actions: [
         { id: 'sync-apply', label: '연동 반영' },
@@ -239,10 +239,10 @@ export function buildWarnings({
   if (integritySignals.hasPermissionConflict) {
     items.push(createScoredWarning({
       id: 'permission-delete',
-      title: 'Permission-Action Conflict',
+      title: '권한-행동 충돌',
       detail: `삭제 권한이 켜진 역할이 있습니다: ${integritySignals.deleteRoles.join(', ')}`,
       actions: [
-        { id: 'apply-permission-guard', label: '삭제 보호 적용' },
+        { id: 'apply-permission-guard', label: '삭제 승인 단계 적용' },
         { id: 'go-l2', label: 'L2 열기' },
       ],
       autoAction: 'apply-permission-guard',
@@ -255,7 +255,7 @@ export function buildWarnings({
   if (integritySignals.hasIntentMismatch) {
     items.push(createScoredWarning({
       id: 'intent-mismatch',
-      title: 'Intent-Spec Coherence',
+      title: '의도-스펙 정합성',
       detail: 'L1 핵심 문제 문장이 L2 Text 축에 반영되지 않았습니다.',
       actions: [
         { id: 'align-intent', label: '의도 반영' },

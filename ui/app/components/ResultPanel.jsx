@@ -15,6 +15,7 @@ import {
 import {
   buildL1Intelligence,
   buildL2Intelligence,
+  buildSuggestionInputExamples,
 } from './result-panel/intelligence';
 import {
   buildWarningSummary,
@@ -37,6 +38,7 @@ import {
 import HybridStackGuidePanel from './HybridStackGuidePanel';
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
 import { useCtaHistory } from './result-panel/hooks/useCtaHistory.js';
+import IssueLoopWorkspace from './result-panel/IssueLoopWorkspace.jsx';
 
 function buildEmptyL1FocusGuide() {
   return {
@@ -62,6 +64,7 @@ export default function ResultPanel({
   promptPolicyMeta,
   validationReport,
   clarifyLoop,
+  clarifyApplyNotice,
   personaCapabilities,
   onRefreshHybrid,
   onSyncWarningToClarify,
@@ -133,6 +136,9 @@ export default function ResultPanel({
   const [l1FocusGuide, setL1FocusGuide] = useState(buildEmptyL1FocusGuide());
   const [isSuggestedHypothesisPreviewOpen, setIsSuggestedHypothesisPreviewOpen] = useState(false);
   const [l1SuggestionStatus, setL1SuggestionStatus] = useState('');
+  const [selectedIssueId, setSelectedIssueId] = useState('');
+  const [issueStatusById, setIssueStatusById] = useState({});
+  const [issueLoopMessage, setIssueLoopMessage] = useState('');
 
   const {
     actionPack,
@@ -163,6 +169,9 @@ export default function ResultPanel({
     l1FocusGuide: deepClone(l1FocusGuide),
     isSuggestedHypothesisPreviewOpen,
     l1SuggestionStatus,
+    selectedIssueId,
+    issueStatusById: deepClone(issueStatusById),
+    issueLoopMessage,
     ...buildActionPackSnapshot(),
   }), [
     activeLayer,
@@ -176,6 +185,9 @@ export default function ResultPanel({
     isSuggestedHypothesisPreviewOpen,
     l1FocusGuide,
     l1SuggestionStatus,
+    selectedIssueId,
+    issueStatusById,
+    issueLoopMessage,
     logicMap,
     permissionGuardEnabled,
     resolvedWarningIds,
@@ -206,6 +218,9 @@ export default function ResultPanel({
     setL1FocusGuide(isObject(safe.l1FocusGuide) ? deepClone(safe.l1FocusGuide) : buildEmptyL1FocusGuide());
     setIsSuggestedHypothesisPreviewOpen(Boolean(safe.isSuggestedHypothesisPreviewOpen));
     setL1SuggestionStatus(toText(safe.l1SuggestionStatus));
+    setSelectedIssueId(toText(safe.selectedIssueId));
+    setIssueStatusById(isObject(safe.issueStatusById) ? deepClone(safe.issueStatusById) : {});
+    setIssueLoopMessage(toText(safe.issueLoopMessage));
     restoreActionPackSnapshot(safe);
   }, [devSpec, masterPrompt, nondevSpec, restoreActionPackSnapshot]);
 
@@ -250,6 +265,9 @@ export default function ResultPanel({
     setL1FocusGuide(buildEmptyL1FocusGuide());
     setIsSuggestedHypothesisPreviewOpen(false);
     setL1SuggestionStatus('');
+    setSelectedIssueId('');
+    setIssueStatusById({});
+    setIssueLoopMessage('');
     resetActionPackState();
     resetCtaHistory();
     setActiveLayer('L1');
@@ -287,6 +305,14 @@ export default function ResultPanel({
     [hypothesis, l1FocusGuide, l1Intelligence],
   );
   const suggestedHypothesisDiffCount = Object.keys(suggestedHypothesisDiffByField).length;
+  const shouldShowSuggestionInputGuide = isSuggestedHypothesisPreviewOpen && suggestedHypothesisDiffCount === 0;
+  const suggestionInputExamples = useMemo(
+    () => buildSuggestionInputExamples({
+      vibeText: vibe,
+      inferredHypothesis: l1Intelligence?.inferredHypothesis,
+    }),
+    [l1Intelligence, vibe],
+  );
   const l2Intelligence = useMemo(
     () => buildL2Intelligence({ logicMap, changedAxis }),
     [logicMap, changedAxis],
@@ -344,6 +370,25 @@ export default function ResultPanel({
     () => getGateStatusFromWarnings(unresolvedWarnings),
     [unresolvedWarnings],
   );
+
+  useEffect(() => {
+    if (unresolvedWarnings.length === 0) {
+      setSelectedIssueId('');
+      setIssueStatusById({});
+      return;
+    }
+
+    setSelectedIssueId((previous) => (
+      unresolvedWarnings.some((warning) => warning.id === previous)
+        ? previous
+        : unresolvedWarnings[0].id
+    ));
+
+    setIssueStatusById((previous) => unresolvedWarnings.reduce((acc, warning) => {
+      acc[warning.id] = previous[warning.id] || 'queued';
+      return acc;
+    }, {}));
+  }, [unresolvedWarnings]);
 
   const clearL1FocusGuide = () => {
     setL1FocusGuide(buildEmptyL1FocusGuide());
@@ -412,7 +457,7 @@ export default function ResultPanel({
           setL1SuggestionStatus('자동으로 덮어쓸 추천값은 없지만, 강조된 필드는 직접 보완이 필요합니다.');
           return;
         }
-        setL1SuggestionStatus('현재 입력값과 다른 추천 가설이 없어 그대로 유지됩니다.');
+        setL1SuggestionStatus('현재 입력값과 다른 추천 가설이 없습니다. 아래 입력 예시를 참고해 입력 매트릭스를 더 구체적으로 작성해 주세요.');
       },
     });
   };
@@ -543,7 +588,7 @@ export default function ResultPanel({
     runCtaAction({
       layerId: 'L4',
       actionId: 'apply-permission-guard',
-      label: '삭제 보호 적용',
+      label: '삭제 승인 단계 적용',
       mutate: () => {
         setPermissionGuardEnabled(true);
         markWarningResolved('permission-delete');
@@ -651,6 +696,55 @@ export default function ResultPanel({
     if (typeof handler === 'function') {
       handler();
     }
+  };
+
+  const handleSelectIssue = (warningId) => {
+    setSelectedIssueId(warningId);
+    setIssueStatusById((previous) => ({
+      ...previous,
+      [warningId]: previous[warningId] === 'resolved' ? 'queued' : 'in_progress',
+    }));
+    setIssueLoopMessage(`선택 이슈: ${warningId}`);
+  };
+
+  const runIssueAction = (warningId, actionId) => {
+    setSelectedIssueId(warningId);
+    setIssueStatusById((previous) => ({
+      ...previous,
+      [warningId]: 'in_progress',
+    }));
+
+    handleWarningAction(warningId, actionId);
+
+    setIssueStatusById((previous) => ({
+      ...previous,
+      [warningId]: actionId === 'mark-resolved' ? 'resolved' : 'recheck_needed',
+    }));
+    setIssueLoopMessage(
+      actionId === 'mark-resolved'
+        ? '이슈를 해결 처리했습니다.'
+        : '수정을 반영했습니다. 지금 재검사로 검증하세요.',
+    );
+  };
+
+  const handleRecheckNow = () => {
+    setActiveLayer('L4');
+
+    if (!selectedIssueId) {
+      setIssueLoopMessage('재검사를 위해 L4를 열었습니다.');
+      return;
+    }
+
+    const stillUnresolved = unresolvedWarnings.some((warning) => warning.id === selectedIssueId);
+    setIssueStatusById((previous) => ({
+      ...previous,
+      [selectedIssueId]: stillUnresolved ? 'in_progress' : 'resolved',
+    }));
+    setIssueLoopMessage(
+      stillUnresolved
+        ? '선택 이슈가 아직 미해결입니다. 보완 후 다시 재검사하세요.'
+        : '선택 이슈가 해결 상태로 확인되었습니다.',
+    );
   };
 
   const applyAutoFixes = () => {
@@ -813,8 +907,27 @@ export default function ResultPanel({
         </section>
       )}
 
+      <IssueLoopWorkspace
+        gateStatus={gateStatus}
+        warningSummary={warningSummary}
+        unresolvedWarnings={unresolvedWarnings}
+        selectedIssueId={selectedIssueId}
+        issueStatusById={issueStatusById}
+        issueLoopMessage={issueLoopMessage}
+        onSelectIssue={handleSelectIssue}
+        onRunIssueAction={runIssueAction}
+        onRecheckNow={handleRecheckNow}
+        todayActions={todayActions}
+        actionPack={actionPack}
+        actionPackExportStatus={actionPackExportStatus}
+        onCreateActionPack={createActionPack}
+        onExportActionPack={exportActionPack}
+      />
+
       {shouldShowLayerPanels && (
-        <section className="panel layer-panel">
+        <details className="advanced-diagnostics">
+          <summary>Advanced Diagnostics (L1~L5)</summary>
+          <section className="panel layer-panel">
           <h2>Layer Tab (AX)</h2>
           <p className="layer-panel-intro">탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
 
@@ -836,6 +949,8 @@ export default function ResultPanel({
               suggestionPreviewOpen={isSuggestedHypothesisPreviewOpen}
               suggestionStatus={l1SuggestionStatus}
               suggestedHypothesisDiffByField={suggestedHypothesisDiffByField}
+              showSuggestionInputGuide={shouldShowSuggestionInputGuide}
+              suggestionInputExamples={suggestionInputExamples}
               onConfirmHypothesis={confirmHypothesis}
               onPreviewSuggestedHypothesis={previewSuggestedHypothesis}
               onApplySuggestedHypothesis={applySuggestedHypothesis}
@@ -885,6 +1000,7 @@ export default function ResultPanel({
               clarifyQuestions={manualLoopQuestions}
               clarifyAnswers={manualLoopAnswers}
               canSubmitClarifications={canSubmitManualLoop}
+              clarifyApplyNotice={clarifyApplyNotice}
               isProcessing={status === 'processing'}
               canSyncToManualLoop={canSyncToManualLoop}
               onChangeActionPackPreset={changeActionPackPreset}
@@ -898,7 +1014,8 @@ export default function ResultPanel({
             />
           )}
           </div>
-        </section>
+          </section>
+        </details>
       )}
 
       {shouldShowCtaHistory && (

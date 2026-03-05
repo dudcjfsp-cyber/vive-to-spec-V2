@@ -73,6 +73,8 @@ export function L1HypothesisEditor({
   suggestionPreviewOpen = false,
   suggestionStatus = '',
   suggestedHypothesisDiffByField = {},
+  showSuggestionInputGuide = false,
+  suggestionInputExamples = [],
   onConfirmHypothesis,
   onPreviewSuggestedHypothesis,
   onApplySuggestedHypothesis,
@@ -143,6 +145,17 @@ export function L1HypothesisEditor({
             <strong>추천 가설 미리보기</strong>
           </div>
           <p>{suggestionStatus || '기존 값은 그대로 두고, 변경 예정 값만 먼저 확인합니다.'}</p>
+          {!hasPreviewDiff && showSuggestionInputGuide && (
+            <div className="form-group">
+              <strong>입력 예시</strong>
+              <p className="small-muted">아래처럼 5칸(누가/언제/무엇을/왜/성공기준)을 한 번에 적으면 추천 정확도가 올라갑니다.</p>
+              <ul className="small-muted">
+                {suggestionInputExamples.map((example, index) => (
+                  <li key={`l1-suggestion-example-${index}`}>{example}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {hasPreviewDiff && (
             <div className="attention-targets">
               {previewFieldIds.map((fieldId) => (
@@ -456,6 +469,7 @@ export function L5ActionBinder({
   clarifyQuestions = [],
   clarifyAnswers = {},
   canSubmitClarifications = false,
+  clarifyApplyNotice = '',
   isProcessing = false,
   canSyncToManualLoop = false,
   onChangeActionPackPreset,
@@ -507,7 +521,7 @@ export function L5ActionBinder({
           </div>
           <p className="small-muted">
             {hasClarifyQuestions
-              ? `수동 루프 안에서 질문 ${clarifyQuestions.length}개를 바로 수정하고 재생성할 수 있습니다.`
+              ? `수동 루프 질문 ${clarifyQuestions.length}개를 입력 매트릭스에 반영한 뒤, 변환 시작을 직접 실행하세요.`
               : '아직 준비된 수동 루프 질문이 없습니다.'}
           </p>
           {visibleBlockingIssues.length > 0 && (
@@ -562,7 +576,7 @@ export function L5ActionBinder({
                   onClick={onApplyClarifications}
                   disabled={isProcessing || typeof onApplyClarifications !== 'function' || !canSubmitClarifications}
                 >
-                  보완 반영 후 재생성
+                  입력 매트릭스 반영
                 </button>
                 <button
                   type="button"
@@ -573,6 +587,7 @@ export function L5ActionBinder({
                   이번 질문 비우기
                 </button>
               </div>
+              {clarifyApplyNotice && <p className="small-muted matrix-notice">{clarifyApplyNotice}</p>}
             </div>
           )}
         </div>

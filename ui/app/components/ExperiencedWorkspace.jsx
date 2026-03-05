@@ -39,6 +39,7 @@ function renderSharedDiagnosticsLayout({
           onShowThinkingChange={actions.setShowThinking}
           onOpenSettings={() => actions.setIsSettingsOpen(true)}
           onTransmute={actions.handleTransmute}
+          clarifyApplyNotice={derived.clarifyApplyNotice}
         />
       </div>
 
@@ -56,6 +57,7 @@ function renderSharedDiagnosticsLayout({
           masterPrompt={derived.masterPrompt}
           promptPolicyMeta={derived.promptPolicyMeta}
           validationReport={derived.validationReport}
+          clarifyApplyNotice={derived.clarifyApplyNotice}
           personaCapabilities={personaCapabilities}
           onRefreshHybrid={actions.handleRefreshHybrid}
         />
@@ -193,6 +195,10 @@ export default function ExperiencedWorkspace({
             />
           </div>
 
+          {derived.clarifyApplyNotice && (
+            <p className="small-muted matrix-notice">{derived.clarifyApplyNotice}</p>
+          )}
+
           <div className="stack-actions">
             <button
               type="button"
@@ -277,9 +283,9 @@ export default function ExperiencedWorkspace({
 
               {validationQuestions.length > 0 && (
                 <section className="experienced-summary-card">
-                  <h3>보완 질문 후 재생성</h3>
+                  <h3>보완점 입력</h3>
                   <p className="small-muted">
-                    현재 결과의 누락 항목이 감지되어, 필요한 정보만 보완해 한 번 더 재생성할 수 있습니다.
+                    현재 결과의 누락 항목이 감지되었습니다. 필요한 정보만 입력 매트릭스에 반영한 뒤, 생성은 직접 실행하세요.
                   </p>
                   <div className="stack-actions">
                     <span className="pill">turn: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
@@ -306,7 +312,7 @@ export default function ExperiencedWorkspace({
                       onClick={actions.handleApplyClarifications}
                       disabled={state.status === 'processing' || !canSubmitClarification}
                     >
-                      보완 반영 후 재생성
+                      입력 매트릭스 반영
                     </button>
                   </div>
                 </section>

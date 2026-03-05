@@ -27,8 +27,6 @@ import {
   buildClarifyStartedShadowPayload,
   buildGeneratedResultPlan,
   buildPromptExperimentId,
-  buildRegenerateErrorShadowPayload,
-  buildRegenerateStartedShadowPayload,
   buildTransmuteSuccessShadowPayload,
 } from '../services/transmuteFlow.js';
 import { initializeSpecState, shadowWriteSpecState } from '../services/specStateShadow';
@@ -85,11 +83,17 @@ export function useAppController({ personaConfig = null } = {}) {
   const [clarifyQuestions, setClarifyQuestions] = useState([]);
   const [clarifyAnswers, setClarifyAnswers] = useState({});
   const [clarifyLoopTurn, setClarifyLoopTurn] = useState(0);
+  const [clarifyApplyNotice, setClarifyApplyNotice] = useState('');
 
   const providerOptions = useMemo(
     () => SUPPORTED_MODEL_PROVIDERS.map((id) => ({ id, label: getProviderDisplayName(id) })),
     [],
   );
+
+  const setVibeAndResetClarifyNotice = useCallback((nextVibe) => {
+    setVibe(nextVibe);
+    setClarifyApplyNotice('');
+  }, []);
 
   const getSavedApiKeyTimestamp = useCallback(
     () => Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS))),
@@ -130,6 +134,7 @@ export function useAppController({ personaConfig = null } = {}) {
     setClarifyQuestions([]);
     setClarifyAnswers({});
     setClarifyLoopTurn(0);
+    setClarifyApplyNotice('');
   }, []);
 
   const applyClarifyQuestionSet = useCallback((nextQuestions) => {
@@ -411,6 +416,7 @@ export function useAppController({ personaConfig = null } = {}) {
 
     setStatus('processing');
     setErrorMessage('');
+    setClarifyApplyNotice('');
     setResult(null);
     setHybridStackGuide(null);
     setHybridStackGuideStatus('idle');
@@ -474,94 +480,42 @@ export function useAppController({ personaConfig = null } = {}) {
     vibe,
   ]);
 
-  const handleApplyClarifications = useCallback(async () => {
-    if (!result || !apiKey) return;
+  const handleApplyClarifications = useCallback(() => {
+    if (!result) return;
 
     const answeredEntries = clarifyQuestions
-      .map((question) => [question, toText(clarifyAnswers[question])] )
+      .map((question) => [question, toText(clarifyAnswers[question])])
       .filter(([, answer]) => Boolean(answer));
     if (answeredEntries.length === 0) return;
 
-    if (!ensureApiKeyNotExpired('API 키가 만료되었습니다. 다시 입력해 주세요.')) return;
-
-    persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
-    const { promptPolicyMode, promptExperimentId, personaId } = buildGenerationRequestMeta(resolvedPersona);
-    const nextLoopTurn = clarifyLoopTurn + 1;
     const clarificationAnswersPatch = Object.fromEntries(answeredEntries);
     const clarifiedVibe = buildClarifiedVibe(vibe, clarifyQuestions, clarificationAnswersPatch);
 
-    setStatus('processing');
+    setVibe(clarifiedVibe);
     setErrorMessage('');
-    setHybridStackGuide(null);
-    setHybridStackGuideStatus('idle');
+    setClarifyApplyNotice('보완 내용이 입력 매트릭스에 반영되었습니다. 생성 버튼을 눌러 다시 실행해 주세요.');
 
     shadowWriteSpecState({
       ...buildClarifyAnsweredShadowPayload({
         clarificationAnswersPatch,
         clarifyQuestions,
-        nextLoopTurn,
+        nextLoopTurn: clarifyLoopTurn,
         answeredCount: answeredEntries.length,
       }),
     });
 
     shadowWriteSpecState({
-      ...buildRegenerateStartedShadowPayload({
-        clarificationAnswersPatch,
-        clarifyQuestions,
-        nextLoopTurn,
-        apiProvider,
-        selectedModel,
-        promptPolicyMode,
-        promptExperimentId,
-        answeredCount: answeredEntries.length,
-      }),
+      type: 'clarify_applied_to_input',
+      currentNodeId: 'clarify_applied_to_input',
+      clarificationAnswersPatch,
+      pendingQuestions: clarifyQuestions,
+      loopTurn: clarifyLoopTurn,
+      payload: {
+        answered_count: answeredEntries.length,
+        updated_vibe_length: clarifiedVibe.length,
+      },
     });
-
-    try {
-      const generated = await transmuteVibeToSpec(clarifiedVibe, apiKey, {
-        provider: apiProvider,
-        showThinking,
-        modelName: selectedModel,
-        persona: personaId,
-        promptPolicyMode,
-        promptExperimentId,
-      });
-      applyGeneratedResult(generated, {
-        sourceVibe: clarifiedVibe,
-        promptPolicyMode,
-        promptExperimentId,
-        nextLoopTurn,
-        clarificationAnswersPatch,
-      });
-    } catch (error) {
-      applyGenerationErrorState(error);
-      shadowWriteSpecState({
-        ...buildRegenerateErrorShadowPayload({
-          clarificationAnswersPatch,
-          clarifyQuestions,
-          nextLoopTurn,
-          apiProvider,
-          selectedModel,
-          promptPolicyMode,
-          promptExperimentId,
-        }),
-      });
-    }
-  }, [
-    apiKey,
-    apiProvider,
-    applyGeneratedResult,
-    applyGenerationErrorState,
-    clarifyAnswers,
-    clarifyLoopTurn,
-    clarifyQuestions,
-    ensureApiKeyNotExpired,
-    resolvedPersona,
-    result,
-    selectedModel,
-    showThinking,
-    vibe,
-  ]);
+  }, [clarifyAnswers, clarifyLoopTurn, clarifyQuestions, result, vibe]);
 
   useEffect(() => {
     initializeSpecState();
@@ -630,6 +584,7 @@ export function useAppController({ personaConfig = null } = {}) {
       hybridStackGuide,
       hybridStackGuideStatus,
       clarifyLoopTurn,
+      clarifyApplyNotice,
     },
     derived: {
       providerOptions,
@@ -639,6 +594,7 @@ export function useAppController({ personaConfig = null } = {}) {
       masterPrompt: result?.artifacts?.master_prompt || '',
       promptPolicyMeta: result?.meta || null,
       validationReport: isPlainObject(result?.validation_report) ? result.validation_report : null,
+      clarifyApplyNotice,
       clarifyLoop: {
         active: Boolean(resolvedPersona.capabilities.showLoopControls) && clarifyQuestions.length > 0,
         questions: clarifyQuestions,
@@ -648,7 +604,7 @@ export function useAppController({ personaConfig = null } = {}) {
       },
     },
     actions: {
-      setVibe,
+      setVibe: setVibeAndResetClarifyNotice,
       setApiProvider,
       setTempKey,
       setSelectedModel,
@@ -665,3 +621,4 @@ export function useAppController({ personaConfig = null } = {}) {
     },
   };
 }
+

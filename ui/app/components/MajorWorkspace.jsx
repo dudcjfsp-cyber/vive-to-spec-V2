@@ -39,6 +39,7 @@ export default function MajorWorkspace({
             onShowThinkingChange={actions.setShowThinking}
             onOpenSettings={() => actions.setIsSettingsOpen(true)}
             onTransmute={actions.handleTransmute}
+            clarifyApplyNotice={derived.clarifyApplyNotice}
           />
         </div>
 
@@ -57,6 +58,7 @@ export default function MajorWorkspace({
             promptPolicyMeta={derived.promptPolicyMeta}
             validationReport={derived.validationReport}
             clarifyLoop={derived.clarifyLoop}
+            clarifyApplyNotice={derived.clarifyApplyNotice}
             personaCapabilities={personaCapabilities}
             onRefreshHybrid={actions.handleRefreshHybrid}
             onSyncWarningToClarify={actions.syncWarningToClarifyLoop}
@@ -70,3 +72,4 @@ export default function MajorWorkspace({
     </section>
   );
 }
+

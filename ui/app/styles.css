@@ -1261,3 +1261,93 @@ body::after {
     border-radius: 14px;
   }
 }
+.issue-loop-workspace {
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.issue-loop-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.issue-panel {
+  border: 1px solid rgba(72, 247, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(4, 18, 40, 0.62);
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.issue-panel h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.issue-summary-list {
+  margin: 8px 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.issue-list {
+  display: grid;
+  gap: 8px;
+}
+
+.issue-card {
+  text-align: left;
+  border: 1px solid rgba(72, 247, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(3, 16, 37, 0.8);
+  color: var(--ink);
+  padding: 10px;
+  cursor: pointer;
+}
+
+.issue-card.is-active {
+  border-color: rgba(72, 247, 255, 0.68);
+  box-shadow: 0 0 14px rgba(72, 247, 255, 0.18);
+}
+
+.issue-card p {
+  margin: 6px 0 0;
+}
+
+.issue-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.advanced-diagnostics {
+  margin-top: 6px;
+}
+
+.advanced-diagnostics > summary {
+  cursor: pointer;
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+@media (max-width: 980px) {
+  .issue-loop-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.matrix-notice {
+  margin: 4px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(116, 231, 164, 0.55);
+  border-radius: 10px;
+  background: rgba(67, 192, 119, 0.16);
+  color: #cbffe0;
+}

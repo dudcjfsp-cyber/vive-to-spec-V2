@@ -15,6 +15,7 @@ export default function ControlPanel({
   onShowThinkingChange,
   onOpenSettings,
   onTransmute,
+  clarifyApplyNotice = '',
 }) {
   return (
     <section className="panel control-panel">
@@ -84,6 +85,10 @@ export default function ControlPanel({
           disabled={status === 'processing'}
         />
       </div>
+
+      {clarifyApplyNotice && (
+        <p className="small-muted matrix-notice">{clarifyApplyNotice}</p>
+      )}
 
       <div className="stack-actions">
         <button type="button" className="btn btn-primary" onClick={onTransmute} disabled={status === 'processing' || !vibe.trim()}>
