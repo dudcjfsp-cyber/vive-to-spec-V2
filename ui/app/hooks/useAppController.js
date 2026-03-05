@@ -54,6 +54,14 @@ function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function buildGenerationRequestMeta(resolvedPersona) {
+  return {
+    promptPolicyMode: String(resolvedPersona?.promptPolicyMode || 'baseline'),
+    promptExperimentId: buildPromptExperimentId(resolvedPersona),
+    personaId: String(resolvedPersona?.id === 'default' ? '' : (resolvedPersona?.id || '')),
+  };
+}
+
 export function useAppController({ personaConfig = null } = {}) {
   const resolvedPersona = useMemo(
     () => resolvePersonaRuntimeConfig(personaConfig),
@@ -82,6 +90,35 @@ export function useAppController({ personaConfig = null } = {}) {
     () => SUPPORTED_MODEL_PROVIDERS.map((id) => ({ id, label: getProviderDisplayName(id) })),
     [],
   );
+
+  const getSavedApiKeyTimestamp = useCallback(
+    () => Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS))),
+    [apiProvider],
+  );
+
+  const clearExpiredApiKeyState = useCallback((message = '') => {
+    clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
+    setApiKey('');
+    setIsSettingsOpen(true);
+    if (message) {
+      setErrorMessage(message);
+    }
+    setActiveModel('OFFLINE');
+  }, [apiProvider]);
+
+  const ensureApiKeyNotExpired = useCallback((message = '') => {
+    if (!isApiKeyExpired(getSavedApiKeyTimestamp())) return true;
+    clearExpiredApiKeyState(message);
+    return false;
+  }, [clearExpiredApiKeyState, getSavedApiKeyTimestamp]);
+
+  const applyGenerationErrorState = useCallback((error) => {
+    setStatus('error');
+    setActiveModel('LINK FAILURE');
+    setHybridStackGuide(null);
+    setHybridStackGuideStatus('error');
+    setErrorMessage(error instanceof Error ? error.message : '알 수 없는 변환 오류입니다.');
+  }, []);
 
   const resetModelState = useCallback(() => {
     setModelOptions([]);
@@ -367,20 +404,10 @@ export function useAppController({ personaConfig = null } = {}) {
       return;
     }
 
-    const savedAtMs = Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS)));
-    if (isApiKeyExpired(savedAtMs)) {
-      clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
-      setApiKey('');
-      setIsSettingsOpen(true);
-      setErrorMessage('API 키가 만료되었습니다. 다시 입력해 주세요.');
-      setActiveModel('OFFLINE');
-      return;
-    }
+    if (!ensureApiKeyNotExpired('API 키가 만료되었습니다. 다시 입력해 주세요.')) return;
 
     persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
-    const promptPolicyMode = String(resolvedPersona.promptPolicyMode || 'baseline');
-    const promptExperimentId = buildPromptExperimentId(resolvedPersona);
-    const personaId = String(resolvedPersona.id === 'default' ? '' : resolvedPersona.id);
+    const { promptPolicyMode, promptExperimentId, personaId } = buildGenerationRequestMeta(resolvedPersona);
 
     setStatus('processing');
     setErrorMessage('');
@@ -422,11 +449,7 @@ export function useAppController({ personaConfig = null } = {}) {
         nextLoopTurn: 0,
       });
     } catch (error) {
-      setStatus('error');
-      setActiveModel('LINK FAILURE');
-      setHybridStackGuide(null);
-      setHybridStackGuideStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : '알 수 없는 변환 오류입니다.');
+      applyGenerationErrorState(error);
       shadowWriteSpecState({
         type: 'transmute_error',
         currentNodeId: 'transmute_error',
@@ -438,7 +461,18 @@ export function useAppController({ personaConfig = null } = {}) {
         },
       });
     }
-  }, [apiKey, apiProvider, applyGeneratedResult, resetClarifyLoop, resolvedPersona, selectedModel, showThinking, vibe]);
+  }, [
+    apiKey,
+    apiProvider,
+    applyGeneratedResult,
+    applyGenerationErrorState,
+    ensureApiKeyNotExpired,
+    resetClarifyLoop,
+    resolvedPersona,
+    selectedModel,
+    showThinking,
+    vibe,
+  ]);
 
   const handleApplyClarifications = useCallback(async () => {
     if (!result || !apiKey) return;
@@ -448,20 +482,10 @@ export function useAppController({ personaConfig = null } = {}) {
       .filter(([, answer]) => Boolean(answer));
     if (answeredEntries.length === 0) return;
 
-    const savedAtMs = Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS)));
-    if (isApiKeyExpired(savedAtMs)) {
-      clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
-      setApiKey('');
-      setIsSettingsOpen(true);
-      setErrorMessage('API 키가 만료되었습니다. 다시 입력해 주세요.');
-      setActiveModel('OFFLINE');
-      return;
-    }
+    if (!ensureApiKeyNotExpired('API 키가 만료되었습니다. 다시 입력해 주세요.')) return;
 
     persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
-    const promptPolicyMode = String(resolvedPersona.promptPolicyMode || 'baseline');
-    const promptExperimentId = buildPromptExperimentId(resolvedPersona);
-    const personaId = String(resolvedPersona.id === 'default' ? '' : resolvedPersona.id);
+    const { promptPolicyMode, promptExperimentId, personaId } = buildGenerationRequestMeta(resolvedPersona);
     const nextLoopTurn = clarifyLoopTurn + 1;
     const clarificationAnswersPatch = Object.fromEntries(answeredEntries);
     const clarifiedVibe = buildClarifiedVibe(vibe, clarifyQuestions, clarificationAnswersPatch);
@@ -510,11 +534,7 @@ export function useAppController({ personaConfig = null } = {}) {
         clarificationAnswersPatch,
       });
     } catch (error) {
-      setStatus('error');
-      setActiveModel('LINK FAILURE');
-      setHybridStackGuide(null);
-      setHybridStackGuideStatus('error');
-      setErrorMessage(error instanceof Error ? error.message : '알 수 없는 변환 오류입니다.');
+      applyGenerationErrorState(error);
       shadowWriteSpecState({
         ...buildRegenerateErrorShadowPayload({
           clarificationAnswersPatch,
@@ -527,7 +547,21 @@ export function useAppController({ personaConfig = null } = {}) {
         }),
       });
     }
-  }, [apiKey, apiProvider, applyGeneratedResult, clarifyAnswers, clarifyLoopTurn, clarifyQuestions, resolvedPersona, result, selectedModel, showThinking, vibe]);
+  }, [
+    apiKey,
+    apiProvider,
+    applyGeneratedResult,
+    applyGenerationErrorState,
+    clarifyAnswers,
+    clarifyLoopTurn,
+    clarifyQuestions,
+    ensureApiKeyNotExpired,
+    resolvedPersona,
+    result,
+    selectedModel,
+    showThinking,
+    vibe,
+  ]);
 
   useEffect(() => {
     initializeSpecState();
@@ -567,25 +601,16 @@ export function useAppController({ personaConfig = null } = {}) {
   useEffect(() => {
     if (!apiKey) return undefined;
 
-    const savedAtMs = Number(sessionStorage.getItem(getApiKeySavedAtStorageKey(apiProvider, SUPPORTED_MODEL_PROVIDERS)));
-    if (isApiKeyExpired(savedAtMs)) {
-      clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
-      setApiKey('');
-      setActiveModel('OFFLINE');
-      setIsSettingsOpen(true);
-      return undefined;
-    }
+    const savedAtMs = getSavedApiKeyTimestamp();
+    if (!ensureApiKeyNotExpired()) return undefined;
 
     const remainingMs = API_KEY_TTL_MS - (Date.now() - savedAtMs);
     const timerId = window.setTimeout(() => {
-      clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
-      setApiKey('');
-      setActiveModel('OFFLINE');
-      setIsSettingsOpen(true);
+      clearExpiredApiKeyState();
     }, remainingMs);
 
     return () => window.clearTimeout(timerId);
-  }, [apiKey, apiProvider]);
+  }, [apiKey, clearExpiredApiKeyState, ensureApiKeyNotExpired, getSavedApiKeyTimestamp]);
 
   return {
     state: {

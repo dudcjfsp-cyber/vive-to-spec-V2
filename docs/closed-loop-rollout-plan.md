@@ -1,6 +1,6 @@
 # Persona-Based Closed Loop Rollout Plan
 
-- Updated: 2026-03-04
+- Updated: 2026-03-05
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Status: In progress
 - Goal: keep beginner mode one-shot and fast, while experienced and major modes use controlled validation, clarification, and repair loops.
@@ -189,3 +189,64 @@ This is the active contract after the current session.
 1. Continue Week 4 stabilization by testing real manual-loop flows end to end, especially repeated warning handoff and question replacement.
 2. Continue Week 5 by deciding if stricter prompt policy should expand beyond beginner mode.
 3. Add clearer visual emphasis when a new question is inserted into the manual loop after clicking `수동 루프로 보내기`.
+
+## 7. L1~L5 UX Improvement Backlog (Draft)
+
+This backlog focuses on reducing L4 re-check friction in `experienced` and `major` sessions.
+
+### 7.1 Low Cost (1~2 days)
+
+1. Add a persistent return CTA after L4 handoff
+   - Scope: when L4 sends users to L1/L2/L5, keep a sticky banner with:
+     - active warning id/title
+     - unresolved warning count
+     - one-click `L4로 돌아가 재검사`
+   - Expected effect: reduce "where should I go back?" confusion
+   - Done when: users can return to L4 in one click from any layer tab
+
+2. Keep diagnostics context when panel is collapsed (experienced)
+   - Scope: closing/opening diagnostics should preserve:
+     - last active layer
+     - selected warning context
+     - current unresolved warning summary
+   - Expected effect: prevent accidental context reset while doing compact-first flow
+   - Done when: reopening diagnostics restores the same Lx state users left
+
+3. Add "re-check now" shortcut in L1/L2/L5
+   - Scope: show compact badge/button if the current route originated from L4 warning action
+   - Expected effect: faster loop closure without manual tab search
+   - Done when: L4-origin edits always expose a visible re-check action
+
+### 7.2 Medium Cost (about 1 week)
+
+1. Introduce warning-task tracking model
+   - Scope: track warning lifecycle as `queued -> in_progress -> rechecked -> resolved`
+   - UI: surface "currently fixing" warnings separately from full warning list
+   - Expected effect: users focus on active issues instead of re-reading full L4 cards
+   - Done when: each handoff warning keeps state across L1/L2/L5 and returns to L4
+
+2. Conditional post-regenerate landing policy
+   - Scope: if regeneration was triggered by L4/manual-loop correction, land back on L4 by default
+   - Expected effect: immediate integrity verification after repair
+   - Done when: default post-regenerate layer is context-aware (`L1` vs `L4`)
+
+3. Expand L4 inline actions before cross-layer jumps
+   - Scope: increase actions that can be completed in L4 directly (intent align, permission guard, sync hints)
+   - Expected effect: reduce avoidable tab switches
+   - Done when: top warning resolution can be completed in L4 for common cases
+
+### 7.3 Measurement Baseline (for A/B or before-after)
+
+- `l4_return_clicks_per_issue`: average return clicks needed per warning resolution
+- `time_to_first_recheck_ms`: time from first L4 handoff to first L4 re-check
+- `warnings_resolved_per_cycle`: number of warnings resolved per one correction cycle
+- `diag_reopen_context_loss_rate`: percentage of reopen events that lose prior Lx context
+
+### 7.4 Proposed Order
+
+1. Low-cost item 1 (persistent return CTA)
+2. Low-cost item 2 (diagnostics context preserve)
+3. Low-cost item 3 (re-check shortcut)
+4. Medium-cost item 2 (context-aware landing)
+5. Medium-cost item 1 (warning-task tracking)
+6. Medium-cost item 3 (L4 inline action expansion)
