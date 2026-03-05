@@ -595,71 +595,61 @@ export default function ResultPanel({
     });
   };
 
+  const moveToLayerFromWarning = (layerId, warningId, targetWarning = null) => {
+    const actionId = layerId === 'L1' ? 'go-l1' : 'go-l2';
+    const actionLabel = layerId === 'L1' ? 'L1 열기' : 'L2 열기';
+
+    runCtaAction({
+      layerId: 'L4',
+      actionId,
+      label: actionLabel,
+      meta: { warningId },
+      mutate: () => {
+        setActiveLayer(layerId);
+        if (layerId !== 'L1') return;
+        if (targetWarning) {
+          setL1FocusGuide(buildL1FocusGuideFromWarning({
+            warning: targetWarning,
+            l1LowConfidenceFields: l1Intelligence.lowConfidenceFields,
+          }));
+          return;
+        }
+        clearL1FocusGuide();
+      },
+    });
+  };
+
   const handleWarningAction = (warningId, actionId) => {
     const targetWarning = warnings.find((warning) => warning.id === warningId);
 
     if (actionId === 'go-l1') {
-      runCtaAction({
-        layerId: 'L4',
-        actionId: 'go-l1',
-        label: 'L1 열기',
-        meta: { warningId },
-        mutate: () => {
-          setActiveLayer('L1');
-          if (targetWarning) {
-            setL1FocusGuide(buildL1FocusGuideFromWarning({
-              warning: targetWarning,
-              l1LowConfidenceFields: l1Intelligence.lowConfidenceFields,
-            }));
-          } else {
-            clearL1FocusGuide();
-          }
-        },
-      });
+      moveToLayerFromWarning('L1', warningId, targetWarning);
       return;
     }
     if (actionId === 'go-l2') {
-      runCtaAction({
-        layerId: 'L4',
-        actionId: 'go-l2',
-        label: 'L2 열기',
-        meta: { warningId },
-        mutate: () => setActiveLayer('L2'),
-      });
+      moveToLayerFromWarning('L2', warningId);
       return;
     }
-    if (actionId === 'mark-resolved') {
-      runCtaAction({
+
+    const warningActionHandlers = {
+      'mark-resolved': () => runCtaAction({
         layerId: 'L4',
         actionId: 'mark-resolved',
         label: '경고 확인 완료',
         meta: { warningId },
         mutate: () => markWarningResolved(warningId),
-      });
-      return;
-    }
-    if (actionId === 'confirm-intent') {
-      confirmHypothesis();
-      return;
-    }
-    if (actionId === 'apply-suggested-hypothesis') {
-      applySuggestedHypothesis();
-      return;
-    }
-    if (actionId === 'sync-apply') {
-      applySync();
-      return;
-    }
-    if (actionId === 'apply-permission-guard') {
-      applyPermissionGuard();
-      return;
-    }
-    if (actionId === 'align-intent') {
-      alignIntentToSpec();
-      return;
-    }
-    if (actionId === 'send-to-clarify') {
-      sendWarningToClarifyLoop(targetWarning);
+      }),
+      'confirm-intent': confirmHypothesis,
+      'apply-suggested-hypothesis': applySuggestedHypothesis,
+      'sync-apply': applySync,
+      'apply-permission-guard': applyPermissionGuard,
+      'align-intent': alignIntentToSpec,
+      'send-to-clarify': () => sendWarningToClarifyLoop(targetWarning),
+    };
+
+    const handler = warningActionHandlers[actionId];
+    if (typeof handler === 'function') {
+      handler();
     }
   };
 
