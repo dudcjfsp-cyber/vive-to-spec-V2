@@ -20,6 +20,7 @@ function renderSharedDiagnosticsLayout({
   derived,
   actions,
   personaCapabilities,
+  showApiSettings,
 }) {
   return (
     <div className="layout-grid">
@@ -37,6 +38,7 @@ function renderSharedDiagnosticsLayout({
           onProviderChange={actions.setApiProvider}
           onModelChange={actions.setSelectedModel}
           onShowThinkingChange={actions.setShowThinking}
+          showApiSettings={showApiSettings}
           onOpenSettings={() => actions.setIsSettingsOpen(true)}
           onTransmute={actions.handleTransmute}
           clarifyApplyNotice={derived.clarifyApplyNotice}
@@ -73,6 +75,7 @@ export default function ExperiencedWorkspace({
   personaCapabilities,
   showModeIntro = true,
   compactMode = true,
+  showApiSettings = true,
 }) {
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
 
@@ -111,6 +114,7 @@ export default function ExperiencedWorkspace({
           derived,
           actions,
           personaCapabilities,
+          showApiSettings,
         })}
       </section>
     );
@@ -208,9 +212,11 @@ export default function ExperiencedWorkspace({
             >
               {state.status === 'processing' ? '요약 생성 중...' : '요약 생성'}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => actions.setIsSettingsOpen(true)}>
-              API 키 설정
-            </button>
+            {showApiSettings && (
+              <button type="button" className="btn btn-ghost" onClick={() => actions.setIsSettingsOpen(true)}>
+                API 키 설정
+              </button>
+            )}
           </div>
 
           <p className="small-muted experienced-footer-note">
@@ -348,6 +354,7 @@ export default function ExperiencedWorkspace({
             derived,
             actions,
             personaCapabilities,
+            showApiSettings,
           })}
         </section>
       )}

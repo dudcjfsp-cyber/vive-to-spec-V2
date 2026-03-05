@@ -35,6 +35,7 @@ export default function MajorWorkspace({
   derived,
   actions,
   personaCapabilities,
+  showApiSettings = true,
 }) {
   const schemaWarnings = useMemo(
     () => toStringArray(derived.standardOutput?.완성도_진단?.누락_경고).slice(0, 3),
@@ -167,6 +168,7 @@ export default function MajorWorkspace({
             onProviderChange={actions.setApiProvider}
             onModelChange={actions.setSelectedModel}
             onShowThinkingChange={actions.setShowThinking}
+            showApiSettings={showApiSettings}
             onOpenSettings={() => actions.setIsSettingsOpen(true)}
             onTransmute={actions.handleTransmute}
             clarifyApplyNotice={derived.clarifyApplyNotice}

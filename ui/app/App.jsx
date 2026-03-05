@@ -67,8 +67,12 @@ export default function App() {
   const { state, derived, actions } = useAppController({
     personaConfig: activePersonaConfig,
   });
-  const hasApiKey = Boolean(state.apiKey);
+  const hasApiAccess = state.hasApiAccess;
+  const requiresApiKey = state.requiresApiKey;
   const providerLabel = derived.providerOptions.find((item) => item.id === state.apiProvider)?.label || state.apiProvider;
+  const apiStatusLabel = requiresApiKey
+    ? (hasApiAccess ? providerLabel : '연결 필요')
+    : `관리형 서버 (${providerLabel})`;
   const isBeginnerWorkspace = activePersonaConfig.workspaceKind === 'beginner';
   const advancedWorkspaceVariant = activePersonaConfig.advancedWorkspaceVariant;
   const activePersonaCapabilities = activePersonaConfig.capabilities;
@@ -117,15 +121,17 @@ export default function App() {
               ? (isBeginnerWorkspace
                 ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
                 : '아이디어를 실행 가능한 스펙으로 단계별 정리하는 교육형 워크스페이스.')
-              : '세션을 먼저 고르고, 바로 같은 화면에서 API 연결과 작업 시작까지 이어집니다.'}
+              : (requiresApiKey
+                ? '세션을 먼저 고르고, 바로 같은 화면에서 API 연결과 작업 시작까지 이어집니다.'
+                : '세션을 먼저 고르고 바로 작업을 시작합니다.')}
           </p>
         </div>
         <div className="header-meta">
           <span className="status-chip">
             세션: {activePersona?.label || '선택 전'}
           </span>
-          <span className={`status-chip ${hasApiKey ? '' : 'muted'}`}>
-            API: {hasApiKey ? providerLabel : '연결 필요'}
+          <span className={`status-chip ${hasApiAccess ? '' : 'muted'}`}>
+            API: {apiStatusLabel}
           </span>
           <span className="status-chip muted">상태 복원 활성화</span>
           {activePersona && (
@@ -149,14 +155,14 @@ export default function App() {
         onSelectPersona={handleSelectPersona}
       />
 
-      {!hasApiKey && renderApiKeyGate({
+      {requiresApiKey && !hasApiAccess && renderApiKeyGate({
         state,
         derived,
         actions,
         activePersona,
       })}
 
-      {hasApiKey && !activePersona && (
+      {hasApiAccess && !activePersona && (
         <section className="panel persona-pending">
           <div className="panel-head">
             <h2>세션을 선택해 계속</h2>
@@ -165,7 +171,7 @@ export default function App() {
         </section>
       )}
 
-      {hasApiKey && activePersona && isBeginnerWorkspace && (
+      {hasApiAccess && activePersona && isBeginnerWorkspace && (
         <>
           <BeginnerWorkspace
             vibe={state.vibe}
@@ -182,6 +188,7 @@ export default function App() {
             showThinking={state.showThinking}
             showPromptPolicyMeta={activePersonaCapabilities.showPromptPolicyMeta}
             allowAdvancedToggle={activePersonaCapabilities.allowBeginnerAdvancedToggle}
+            showApiSettings={requiresApiKey}
             onVibeChange={actions.setVibe}
             onProviderChange={actions.setApiProvider}
             onModelChange={actions.setSelectedModel}
@@ -200,38 +207,44 @@ export default function App() {
                 personaCapabilities={activePersonaCapabilities}
                 showModeIntro={false}
                 compactMode={false}
+                showApiSettings={requiresApiKey}
               />
             </section>
           )}
         </>
       )}
 
-      {hasApiKey && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant === 'major' && (
+      {hasApiAccess && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant === 'major' && (
         <MajorWorkspace
           state={state}
           derived={derived}
           actions={actions}
           personaCapabilities={activePersonaCapabilities}
+          showApiSettings={requiresApiKey}
         />
       )}
 
-      {hasApiKey && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant !== 'major' && (
+      {hasApiAccess && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant !== 'major' && (
         <ExperiencedWorkspace
           state={state}
           derived={derived}
           actions={actions}
           personaCapabilities={activePersonaCapabilities}
+          showApiSettings={requiresApiKey}
         />
       )}
 
-      <ApiKeyModal
-        isOpen={state.isSettingsOpen}
-        providerLabel={providerLabel}
-        tempKey={state.tempKey}
-        onTempKeyChange={actions.setTempKey}
-        onSave={actions.handleSaveKey}
-        onClose={() => actions.setIsSettingsOpen(false)}
-      />
+      {requiresApiKey && (
+        <ApiKeyModal
+          isOpen={state.isSettingsOpen}
+          providerLabel={providerLabel}
+          tempKey={state.tempKey}
+          onTempKeyChange={actions.setTempKey}
+          onSave={actions.handleSaveKey}
+          onClose={() => actions.setIsSettingsOpen(false)}
+        />
+      )}
     </main>
   );
 }
+

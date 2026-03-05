@@ -31,6 +31,7 @@ import {
 } from '../services/transmuteFlow.js';
 import { initializeSpecState, shadowWriteSpecState } from '../services/specStateShadow';
 import { resolvePersonaRuntimeConfig } from '../persona/presets';
+import { REQUIRES_USER_API_KEY } from '../config/runtime.js';
 
 function getSafeModelName(value, fallback = 'OFFLINE') {
   const text = String(value || '').trim();
@@ -72,7 +73,9 @@ export function useAppController({ personaConfig = null } = {}) {
   const [apiProvider, setApiProvider] = useState(() => getStoredProvider(SUPPORTED_MODEL_PROVIDERS));
   const [apiKey, setApiKey] = useState(() => getStoredApiKey(getStoredProvider(SUPPORTED_MODEL_PROVIDERS), SUPPORTED_MODEL_PROVIDERS));
   const [tempKey, setTempKey] = useState('');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(() => !getStoredApiKey(getStoredProvider(SUPPORTED_MODEL_PROVIDERS), SUPPORTED_MODEL_PROVIDERS));
+  const [isSettingsOpen, setIsSettingsOpen] = useState(() => (REQUIRES_USER_API_KEY
+    ? !getStoredApiKey(getStoredProvider(SUPPORTED_MODEL_PROVIDERS), SUPPORTED_MODEL_PROVIDERS)
+    : false));
   const [modelOptions, setModelOptions] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [isModelOptionsLoading, setIsModelOptionsLoading] = useState(false);
@@ -84,6 +87,8 @@ export function useAppController({ personaConfig = null } = {}) {
   const [clarifyAnswers, setClarifyAnswers] = useState({});
   const [clarifyLoopTurn, setClarifyLoopTurn] = useState(0);
   const [clarifyApplyNotice, setClarifyApplyNotice] = useState('');
+  const requiresUserApiKey = REQUIRES_USER_API_KEY;
+  const hasApiAccess = requiresUserApiKey ? Boolean(apiKey) : true;
 
   const providerOptions = useMemo(
     () => SUPPORTED_MODEL_PROVIDERS.map((id) => ({ id, label: getProviderDisplayName(id) })),
@@ -101,6 +106,8 @@ export function useAppController({ personaConfig = null } = {}) {
   );
 
   const clearExpiredApiKeyState = useCallback((message = '') => {
+    if (!requiresUserApiKey) return;
+
     clearStoredApiKey(apiProvider, SUPPORTED_MODEL_PROVIDERS);
     setApiKey('');
     setIsSettingsOpen(true);
@@ -108,13 +115,14 @@ export function useAppController({ personaConfig = null } = {}) {
       setErrorMessage(message);
     }
     setActiveModel('OFFLINE');
-  }, [apiProvider]);
+  }, [apiProvider, requiresUserApiKey]);
 
   const ensureApiKeyNotExpired = useCallback((message = '') => {
+    if (!requiresUserApiKey) return true;
     if (!isApiKeyExpired(getSavedApiKeyTimestamp())) return true;
     clearExpiredApiKeyState(message);
     return false;
-  }, [clearExpiredApiKeyState, getSavedApiKeyTimestamp]);
+  }, [clearExpiredApiKeyState, getSavedApiKeyTimestamp, requiresUserApiKey]);
 
   const applyGenerationErrorState = useCallback((error) => {
     setStatus('error');
@@ -152,7 +160,7 @@ export function useAppController({ personaConfig = null } = {}) {
   }, []);
 
   const loadModelOptions = useCallback(async (nextApiKey, nextProvider) => {
-    if (!nextApiKey) {
+    if (requiresUserApiKey && !nextApiKey) {
       setModelOptions([]);
       setSelectedModel('');
       setIsModelOptionsLoading(false);
@@ -176,11 +184,11 @@ export function useAppController({ personaConfig = null } = {}) {
     } finally {
       setIsModelOptionsLoading(false);
     }
-  }, []);
+  }, [requiresUserApiKey]);
 
   const requestHybridStackGuide = useCallback(async (nextResult, nextVibe) => {
     const standardOutput = nextResult?.standard_output;
-    if (!apiKey || !standardOutput) {
+    if (!standardOutput || (requiresUserApiKey && !apiKey)) {
       setHybridStackGuide(null);
       setHybridStackGuideStatus('error');
       return;
@@ -217,7 +225,7 @@ export function useAppController({ personaConfig = null } = {}) {
         },
       });
     }
-  }, [apiKey, apiProvider, selectedModel]);
+  }, [apiKey, apiProvider, requiresUserApiKey, selectedModel]);
 
   const handleRefreshHybrid = useCallback(() => {
     if (!result) return;
@@ -382,6 +390,12 @@ export function useAppController({ personaConfig = null } = {}) {
   }, [apiProvider, applyClarifyQuestionSet, requestHybridStackGuide, resolvedPersona.capabilities.loopMode, resolvedPersona.capabilities.maxClarifyTurns, selectedModel]);
 
   const handleSaveKey = useCallback(() => {
+    if (!requiresUserApiKey) {
+      setTempKey('');
+      setIsSettingsOpen(false);
+      return;
+    }
+
     const key = tempKey.trim();
     if (!key) return;
 
@@ -399,11 +413,11 @@ export function useAppController({ personaConfig = null } = {}) {
       },
       payload: { provider: apiProvider },
     });
-  }, [apiProvider, tempKey]);
+  }, [apiProvider, requiresUserApiKey, tempKey]);
 
   const handleTransmute = useCallback(async () => {
     if (!vibe.trim()) return;
-    if (!apiKey) {
+    if (requiresUserApiKey && !apiKey) {
       setIsSettingsOpen(true);
       setErrorMessage('API 키가 필요합니다.');
       return;
@@ -411,7 +425,9 @@ export function useAppController({ personaConfig = null } = {}) {
 
     if (!ensureApiKeyNotExpired('API 키가 만료되었습니다. 다시 입력해 주세요.')) return;
 
-    persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
+    if (requiresUserApiKey) {
+      persistApiKeyToSession(apiKey, apiProvider, SUPPORTED_MODEL_PROVIDERS);
+    }
     const { promptPolicyMode, promptExperimentId, personaId } = buildGenerationRequestMeta(resolvedPersona);
 
     setStatus('processing');
@@ -474,6 +490,7 @@ export function useAppController({ personaConfig = null } = {}) {
     applyGenerationErrorState,
     ensureApiKeyNotExpired,
     resetClarifyLoop,
+    requiresUserApiKey,
     resolvedPersona,
     selectedModel,
     showThinking,
@@ -524,35 +541,45 @@ export function useAppController({ personaConfig = null } = {}) {
   useEffect(() => {
     const normalizedProvider = normalizeProvider(apiProvider, SUPPORTED_MODEL_PROVIDERS);
     persistProviderToSession(normalizedProvider, SUPPORTED_MODEL_PROVIDERS);
-    const restoredKey = getStoredApiKey(normalizedProvider, SUPPORTED_MODEL_PROVIDERS);
+
+    const restoredKey = requiresUserApiKey
+      ? getStoredApiKey(normalizedProvider, SUPPORTED_MODEL_PROVIDERS)
+      : '';
+
     setApiKey(restoredKey);
     setTempKey('');
     resetModelState();
-    if (!restoredKey) setIsSettingsOpen(true);
+
+    if (requiresUserApiKey) {
+      if (!restoredKey) setIsSettingsOpen(true);
+    } else {
+      setIsSettingsOpen(false);
+    }
 
     shadowWriteSpecState({
       type: 'provider_changed',
       currentNodeId: 'provider_selected',
       answersPatch: {
         api_provider: normalizedProvider,
-        api_key_ready: Boolean(restoredKey),
+        api_key_ready: requiresUserApiKey ? Boolean(restoredKey) : true,
       },
       payload: {
         provider: normalizedProvider,
-        restored_key: Boolean(restoredKey),
+        restored_key: requiresUserApiKey ? Boolean(restoredKey) : true,
       },
     });
-  }, [apiProvider, resetModelState]);
+  }, [apiProvider, requiresUserApiKey, resetModelState]);
 
   useEffect(() => {
-    if (!apiKey) {
+    if (requiresUserApiKey && !apiKey) {
       resetModelState();
       return;
     }
     void loadModelOptions(apiKey, apiProvider);
-  }, [apiKey, apiProvider, loadModelOptions, resetModelState]);
+  }, [apiKey, apiProvider, loadModelOptions, requiresUserApiKey, resetModelState]);
 
   useEffect(() => {
+    if (!requiresUserApiKey) return undefined;
     if (!apiKey) return undefined;
 
     const savedAtMs = getSavedApiKeyTimestamp();
@@ -564,7 +591,7 @@ export function useAppController({ personaConfig = null } = {}) {
     }, remainingMs);
 
     return () => window.clearTimeout(timerId);
-  }, [apiKey, clearExpiredApiKeyState, ensureApiKeyNotExpired, getSavedApiKeyTimestamp]);
+  }, [apiKey, clearExpiredApiKeyState, ensureApiKeyNotExpired, getSavedApiKeyTimestamp, requiresUserApiKey]);
 
   return {
     state: {
@@ -585,6 +612,8 @@ export function useAppController({ personaConfig = null } = {}) {
       hybridStackGuideStatus,
       clarifyLoopTurn,
       clarifyApplyNotice,
+      hasApiAccess,
+      requiresApiKey: requiresUserApiKey,
     },
     derived: {
       providerOptions,
@@ -621,4 +650,3 @@ export function useAppController({ personaConfig = null } = {}) {
     },
   };
 }
-

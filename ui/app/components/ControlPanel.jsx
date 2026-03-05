@@ -13,6 +13,7 @@ export default function ControlPanel({
   onProviderChange,
   onModelChange,
   onShowThinkingChange,
+  showApiSettings = true,
   onOpenSettings,
   onTransmute,
   clarifyApplyNotice = '',
@@ -68,11 +69,13 @@ export default function ControlPanel({
         <label htmlFor="show-thinking">추론 레이어 포함</label>
       </div>
 
-      <div className="stack-actions form-group">
-        <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
-          API 키 설정
-        </button>
-      </div>
+      {showApiSettings && (
+        <div className="stack-actions form-group">
+          <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
+            API 키 설정
+          </button>
+        </div>
+      )}
 
       <div className="form-group">
         <label htmlFor="vibe">바이브 / 요구사항</label>
@@ -98,3 +101,4 @@ export default function ControlPanel({
     </section>
   );
 }
+

@@ -33,6 +33,7 @@ export default function BeginnerWorkspace({
   showThinking,
   showPromptPolicyMeta,
   allowAdvancedToggle,
+  showApiSettings = true,
   onVibeChange,
   onProviderChange,
   onModelChange,
@@ -140,9 +141,11 @@ export default function BeginnerWorkspace({
         >
           {status === 'processing' ? '초안 생성 중...' : '30초 초안 만들기'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
-          API 키 설정
-        </button>
+        {showApiSettings && (
+          <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
+            API 키 설정
+          </button>
+        )}
         {allowAdvancedToggle && (
           <button type="button" className="btn btn-secondary" onClick={onToggleAdvanced}>
             {isAdvancedOpen ? '고급 보기 닫기' : '고급 보기 열기'}
@@ -280,3 +283,4 @@ export default function BeginnerWorkspace({
     </section>
   );
 }
+
