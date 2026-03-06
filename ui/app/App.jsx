@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
 import BeginnerWorkspace from './components/BeginnerWorkspace';
 import ExperiencedWorkspace from './components/ExperiencedWorkspace';
@@ -55,7 +55,6 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return window.sessionStorage.getItem(PERSONA_STORAGE_KEY) || '';
   });
-  const [isBeginnerAdvancedOpen, setIsBeginnerAdvancedOpen] = useState(false);
   const activePersona = useMemo(
     () => resolvePersonaPreset(personaId),
     [personaId],
@@ -86,18 +85,6 @@ export default function App() {
     }
   }, [activePersona]);
 
-  useEffect(() => {
-    if (!isBeginnerWorkspace) {
-      setIsBeginnerAdvancedOpen(false);
-      return;
-    }
-
-    setIsBeginnerAdvancedOpen(Boolean(activePersonaCapabilities.defaultBeginnerAdvancedOpen));
-  }, [
-    activePersonaConfig.id,
-    activePersonaCapabilities.defaultBeginnerAdvancedOpen,
-    isBeginnerWorkspace,
-  ]);
 
   const handleSelectPersona = (nextPersonaId) => {
     if (state.status === 'processing') return;
@@ -107,7 +94,6 @@ export default function App() {
   const handleResetPersona = () => {
     if (state.status === 'processing') return;
     setPersonaId('');
-    setIsBeginnerAdvancedOpen(false);
   };
 
   return (
@@ -172,46 +158,17 @@ export default function App() {
       )}
 
       {hasApiAccess && activePersona && isBeginnerWorkspace && (
-        <>
-          <BeginnerWorkspace
-            vibe={state.vibe}
-            status={state.status}
-            errorMessage={state.errorMessage}
-            standardOutput={derived.standardOutput}
-            masterPrompt={derived.masterPrompt}
-            promptPolicyMeta={derived.promptPolicyMeta}
-            apiProvider={state.apiProvider}
-            providerOptions={derived.providerOptions}
-            modelOptions={state.modelOptions}
-            selectedModel={state.selectedModel}
-            isModelOptionsLoading={state.isModelOptionsLoading}
-            showThinking={state.showThinking}
-            showPromptPolicyMeta={activePersonaCapabilities.showPromptPolicyMeta}
-            allowAdvancedToggle={activePersonaCapabilities.allowBeginnerAdvancedToggle}
-            showApiSettings={requiresApiKey}
-            onVibeChange={actions.setVibe}
-            onProviderChange={actions.setApiProvider}
-            onModelChange={actions.setSelectedModel}
-            onShowThinkingChange={actions.setShowThinking}
-            onOpenSettings={() => actions.setIsSettingsOpen(true)}
-            onTransmute={actions.handleTransmute}
-            isAdvancedOpen={isBeginnerAdvancedOpen}
-            onToggleAdvanced={() => setIsBeginnerAdvancedOpen((prev) => !prev)}
-          />
-          {isBeginnerAdvancedOpen && (
-            <section className="beginner-advanced-wrap">
-              <ExperiencedWorkspace
-                state={state}
-                derived={derived}
-                actions={actions}
-                personaCapabilities={activePersonaCapabilities}
-                showModeIntro={false}
-                compactMode={false}
-                showApiSettings={requiresApiKey}
-              />
-            </section>
-          )}
-        </>
+        <BeginnerWorkspace
+          vibe={state.vibe}
+          status={state.status}
+          errorMessage={state.errorMessage}
+          standardOutput={derived.standardOutput}
+          masterPrompt={derived.masterPrompt}
+          showApiSettings={requiresApiKey}
+          onVibeChange={actions.setVibe}
+          onOpenSettings={() => actions.setIsSettingsOpen(true)}
+          onTransmute={actions.handleTransmute}
+        />
       )}
 
       {hasApiAccess && activePersona && !isBeginnerWorkspace && advancedWorkspaceVariant === 'major' && (
@@ -247,4 +204,7 @@ export default function App() {
     </main>
   );
 }
+
+
+
 

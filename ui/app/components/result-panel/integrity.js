@@ -1,4 +1,4 @@
-import {
+﻿import {
   GATE_SCORE_THRESHOLD,
   INTENT_FIELD_LABELS,
   WARNING_DOMAIN_WEIGHT,
@@ -11,6 +11,12 @@ import {
   toStringArray,
   toText,
 } from './utils.js';
+
+const PRIVILEGED_DELETE_ROLE_PATTERN = /(관리자|매니저|운영자|운영 관리자|admin|manager|owner|supervisor|lead)/i;
+
+function isPrivilegedDeleteRole(roleName) {
+  return PRIVILEGED_DELETE_ROLE_PATTERN.test(toText(roleName));
+}
 
 export function inferRiskProfile(detail) {
   const text = toText(detail).toLowerCase();
@@ -131,7 +137,8 @@ export function buildIntegritySignals({
   const deleteRoles = permissionRules
     .filter((rule) => Boolean(rule.삭제))
     .map((rule) => toText(rule.역할, '역할 미정'));
-  const hasPermissionConflict = deleteRoles.length > 0 && !permissionGuardEnabled;
+  const riskyDeleteRoles = deleteRoles.filter((role) => !isPrivilegedDeleteRole(role));
+  const hasPermissionConflict = riskyDeleteRoles.length > 0 && !permissionGuardEnabled;
   const hasIntentMismatch = Boolean(hypothesisWhat && !logicText.includes(hypothesisWhat));
   const lowIntentConfidence = l1Intelligence.overallConfidence < 65;
 
@@ -148,6 +155,7 @@ export function buildIntegritySignals({
     permission,
     coherence,
     deleteRoles,
+    riskyDeleteRoles,
     hasPermissionConflict,
     hasIntentMismatch,
     lowIntentConfidence,
@@ -173,7 +181,7 @@ export function buildWarnings({
       title: `스키마 경고 ${idx + 1}`,
       detail: text,
       actions: [
-        { id: 'go-l1', label: 'L1에서 확인' },
+        { id: 'go-l1', label: '요구 확정 보기' },
         { id: 'mark-resolved', label: '확인 완료' },
       ],
       autoAction: 'mark-resolved',
@@ -186,11 +194,11 @@ export function buildWarnings({
   if (!hypothesisConfirmed) {
     items.push(createScoredWarning({
       id: 'intent-unconfirmed',
-      title: 'L1 가설 미확정',
-      detail: '사용자 확정 전 단계입니다. 가설 확정을 먼저 수행하세요.',
+      title: '핵심 요구 확정 필요',
+      detail: '핵심 목표 문장이 아직 확정되지 않았습니다. 한 문장으로 목표를 먼저 고정하세요.',
       actions: [
         { id: 'confirm-intent', label: '가설 확정' },
-        { id: 'go-l1', label: 'L1 열기' },
+        { id: 'go-l1', label: '요구 확정 보기' },
       ],
       autoAction: 'confirm-intent',
       severity: 'medium',
@@ -205,11 +213,11 @@ export function buildWarnings({
       .join(', ');
     items.push(createScoredWarning({
       id: 'intent-low-confidence',
-      title: '의도 추출 신뢰도 경고',
-      detail: `의도 추론 신뢰도(${l1Intelligence.overallConfidence})가 낮습니다. 우선 보강 필드: ${lowFields || '-'}`,
+      title: '요구사항 해석 보강 필요',
+      detail: `현재 입력만으로는 요구사항 해석 신뢰도가 ${l1Intelligence.overallConfidence}점입니다. 특히 ${lowFields || '핵심 항목'} 부분을 더 구체화하세요.`,
       actions: [
         { id: 'apply-suggested-hypothesis', label: '추천 가설 적용' },
-        { id: 'go-l1', label: 'L1 열기' },
+        { id: 'go-l1', label: '요구 확정 보기' },
       ],
       autoAction: 'apply-suggested-hypothesis',
       severity: l1Intelligence.overallConfidence < 50 ? 'high' : 'medium',
@@ -223,11 +231,11 @@ export function buildWarnings({
     const severity = l2Intelligence.overallScore < 55 ? 'high' : 'medium';
     items.push(createScoredWarning({
       id: 'data-flow-alignment',
-      title: '데이터 흐름 정합성',
-      detail: `L2 합성 ${l2Intelligence.overallScore}, 정합성 ${l2Intelligence.alignmentScore}. 축 간 동기화 점검이 필요합니다.`,
+      title: '기능 흐름 점검 필요',
+      detail: `기능 설명과 데이터/화면 흐름이 아직 완전히 맞물리지 않습니다. 연결 규칙을 한 번 더 정리하세요. (흐름 점수 ${l2Intelligence.overallScore}, 정합성 ${l2Intelligence.alignmentScore})`,
       actions: [
         { id: 'sync-apply', label: '연동 반영' },
-        { id: 'go-l2', label: 'L2 열기' },
+        { id: 'go-l2', label: '로직 동기화 보기' },
       ],
       autoAction: changedAxis ? 'sync-apply' : '',
       severity,
@@ -239,11 +247,11 @@ export function buildWarnings({
   if (integritySignals.hasPermissionConflict) {
     items.push(createScoredWarning({
       id: 'permission-delete',
-      title: '권한-행동 충돌',
-      detail: `삭제 권한이 켜진 역할이 있습니다: ${integritySignals.deleteRoles.join(', ')}`,
+      title: '권한 범위 재확인',
+      detail: `삭제 권한이 일반 역할까지 열려 있을 수 있습니다: ${integritySignals.riskyDeleteRoles.join(', ')}`,
       actions: [
         { id: 'apply-permission-guard', label: '삭제 승인 단계 적용' },
-        { id: 'go-l2', label: 'L2 열기' },
+        { id: 'go-l2', label: '로직 동기화 보기' },
       ],
       autoAction: 'apply-permission-guard',
       severity: 'critical',
@@ -255,11 +263,11 @@ export function buildWarnings({
   if (integritySignals.hasIntentMismatch) {
     items.push(createScoredWarning({
       id: 'intent-mismatch',
-      title: '의도-스펙 정합성',
-      detail: 'L1 핵심 문제 문장이 L2 Text 축에 반영되지 않았습니다.',
+      title: '핵심 목표 반영 필요',
+      detail: '핵심 목표 문장이 기능 설명과 구현 방향에 충분히 반영되지 않았습니다.',
       actions: [
         { id: 'align-intent', label: '의도 반영' },
-        { id: 'go-l1', label: 'L1 열기' },
+        { id: 'go-l1', label: '요구 확정 보기' },
       ],
       autoAction: 'align-intent',
       severity: 'high',

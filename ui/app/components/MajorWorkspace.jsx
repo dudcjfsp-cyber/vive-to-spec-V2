@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import ControlPanel from './ControlPanel';
 import ResultPanel from './ResultPanel';
 
@@ -41,10 +41,6 @@ export default function MajorWorkspace({
     () => toStringArray(derived.standardOutput?.완성도_진단?.누락_경고).slice(0, 3),
     [derived.standardOutput],
   );
-  const todayActions = useMemo(
-    () => toStringArray(derived.standardOutput?.오늘_할_일_3개).slice(0, 3),
-    [derived.standardOutput],
-  );
   const inputFields = useMemo(
     () => toObjectArray(derived.standardOutput?.입력_데이터_필드).slice(0, 5),
     [derived.standardOutput],
@@ -61,6 +57,11 @@ export default function MajorWorkspace({
       .filter(Boolean)
       .slice(0, 3);
   }, [derived.validationReport]);
+  const impactPreview = useMemo(() => ({
+    screens: toStringArray(derived.standardOutput?.변경_영향도?.화면).slice(0, 3),
+    permissions: toStringArray(derived.standardOutput?.변경_영향도?.권한).slice(0, 3),
+    tests: toStringArray(derived.standardOutput?.변경_영향도?.테스트).slice(0, 3),
+  }), [derived.standardOutput]);
 
   const exceptionPolicies = useMemo(() => [
     '검증 실패: 입력 필드 단위로 즉시 오류를 반환하고 재시도는 수행하지 않습니다.',
@@ -68,88 +69,96 @@ export default function MajorWorkspace({
     '권한 충돌: 삭제 작업은 승인 단계 이후에만 실행하도록 보호 규칙을 강제합니다.',
   ], []);
 
+  const engineeringOverview = (
+    <section className="panel major-engineering-overview">
+      <div className="panel-head">
+        <h2>엔지니어링 준비도</h2>
+        <p>전공자 세션에서 실제 구현 전에 꼭 확인할 리스크만 세 가지 축으로 압축했습니다.</p>
+      </div>
+      <div className="major-readiness-grid major-readiness-grid-compact">
+        <article className="major-readiness-card">
+          <h3>신뢰성</h3>
+          <div className="signal-pills">
+            <span className="pill">심각도: {validationSeverity}</span>
+            <span className="pill">경고: {schemaWarnings.length}</span>
+            <span className="pill">차단: {blockingIssues.length}</span>
+          </div>
+          <p className="small-muted">엣지케이스 및 예외 처리 기준</p>
+          <ul className="major-readiness-list">
+            {(schemaWarnings.length > 0 ? schemaWarnings : ['현재 감지된 스키마 경고가 없습니다.'])
+              .slice(0, 3)
+              .map((item, index) => <li key={`major-reliability-warning-${index}`}>{item}</li>)}
+          </ul>
+          <ul className="major-readiness-list compact">
+            {exceptionPolicies.slice(0, 2).map((item, index) => <li key={`major-exception-${index}`}>{item}</li>)}
+          </ul>
+        </article>
+
+        <article className="major-readiness-card">
+          <h3>계약 안정성</h3>
+          <div className="signal-pills">
+            <span className="pill">스키마 필드: {inputFields.length}</span>
+            <span className="pill">필수: {requiredFieldCount}</span>
+            <span className="pill">모델: {state.activeModel}</span>
+          </div>
+          <p className="small-muted">입력 필드와 권한/계약 범위를 빠르게 훑습니다.</p>
+          <ul className="major-readiness-list">
+            {(inputFields.length > 0
+              ? inputFields.map((field) => {
+                const name = toText(field?.이름, '필드');
+                const type = toText(field?.타입, 'string');
+                const requiredLabel = isRequiredField(field?.필수) ? '필수' : '선택';
+                return `${name} (${type}, ${requiredLabel})`;
+              })
+              : ['입력 데이터 필드가 아직 정의되지 않았습니다.'])
+              .slice(0, 5)
+              .map((item, index) => <li key={`major-contract-field-${index}`}>{item}</li>)}
+          </ul>
+        </article>
+
+        <article className="major-readiness-card">
+          <h3>변경 영향</h3>
+          <div className="signal-pills">
+            <span className="pill">화면: {impactPreview.screens.length}</span>
+            <span className="pill">권한: {impactPreview.permissions.length}</span>
+            <span className="pill">테스트: {impactPreview.tests.length}</span>
+          </div>
+          <p className="small-muted">변경 전에 확인할 영향 범위를 빠르게 압축합니다.</p>
+          <ul className="major-readiness-list">
+            {(impactPreview.screens.length > 0
+              ? impactPreview.screens.map((item) => `화면: ${item}`)
+              : ['화면 영향 정보가 아직 없습니다.'])
+              .slice(0, 3)
+              .map((item, index) => <li key={`major-impact-screen-${index}`}>{item}</li>)}
+          </ul>
+          <ul className="major-readiness-list compact">
+            {(impactPreview.permissions.length > 0
+              ? impactPreview.permissions.map((item) => `권한: ${item}`)
+              : ['권한 영향 정보가 아직 없습니다.'])
+              .slice(0, 2)
+              .map((item, index) => <li key={`major-impact-permission-${index}`}>{item}</li>)}
+            {(impactPreview.tests.length > 0
+              ? impactPreview.tests.map((item) => `테스트: ${item}`)
+              : ['테스트 영향 정보가 아직 없습니다.'])
+              .slice(0, 2)
+              .map((item, index) => <li key={`major-impact-test-${index}`}>{item}</li>)}
+          </ul>
+        </article>
+      </div>
+    </section>
+  );
+
   return (
     <section className="major-workspace">
       <section className="panel persona-brief persona-brief-major">
         <div className="panel-head">
           <h2>전공자 모드</h2>
-          <p>검증 메타와 전체 레이어 진단 상태를 그대로 유지한 채, 조정부터 적용까지 직접 컨트롤합니다.</p>
+          <p>기본 화면에는 바로 쓰는 결과와 엔지니어링 준비도만 먼저 두고, 참고 정보는 아래로 접어 정리했습니다.</p>
         </div>
         <div className="signal-pills">
-          <span className="pill">L4 압축 보기: 해제</span>
-          <span className="pill">프롬프트 메타: 전체</span>
-          <span className="pill">흐름: 점검 -&gt; 조정 -&gt; 실행</span>
-        </div>
-      </section>
-
-      <section className="panel major-engineering-overview">
-        <div className="panel-head">
-          <h2>엔지니어링 준비도</h2>
-          <p>전공자 세션에서 장애 대응, 계약 안정성, 운영 가능성을 먼저 확인한 뒤 상세 레이어로 내려갑니다.</p>
-        </div>
-        <div className="major-readiness-grid">
-          <article className="major-readiness-card">
-            <h3>신뢰성</h3>
-            <div className="signal-pills">
-              <span className="pill">심각도: {validationSeverity}</span>
-              <span className="pill">경고: {schemaWarnings.length}</span>
-              <span className="pill">차단: {blockingIssues.length}</span>
-            </div>
-            <p className="small-muted">엣지케이스 및 예외 처리 기준</p>
-            <ul className="major-readiness-list">
-              {(schemaWarnings.length > 0 ? schemaWarnings : ['현재 감지된 스키마 경고가 없습니다.'])
-                .slice(0, 3)
-                .map((item, index) => <li key={`major-reliability-warning-${index}`}>{item}</li>)}
-            </ul>
-            <ul className="major-readiness-list compact">
-              {exceptionPolicies.map((item, index) => <li key={`major-exception-${index}`}>{item}</li>)}
-            </ul>
-          </article>
-
-          <article className="major-readiness-card">
-            <h3>계약 안정성</h3>
-            <div className="signal-pills">
-              <span className="pill">스키마 필드: {inputFields.length}</span>
-              <span className="pill">필수: {requiredFieldCount}</span>
-              <span className="pill">모델: {state.activeModel}</span>
-            </div>
-            <p className="small-muted">스키마/필수 필드/계약 변경 영향 범위</p>
-            <ul className="major-readiness-list">
-              {(inputFields.length > 0
-                ? inputFields.map((field) => {
-                  const name = toText(field?.이름, '필드');
-                  const type = toText(field?.타입, 'string');
-                  const requiredLabel = isRequiredField(field?.필수) ? '필수' : '선택';
-                  return `${name} (${type}, ${requiredLabel})`;
-                })
-                : ['입력 데이터 필드가 아직 정의되지 않았습니다.'])
-                .slice(0, 5)
-                .map((item, index) => <li key={`major-contract-field-${index}`}>{item}</li>)}
-            </ul>
-          </article>
-
-          <article className="major-readiness-card">
-            <h3>운영 준비</h3>
-            <div className="signal-pills">
-              <span className="pill">하이브리드: {state.hybridStackGuideStatus}</span>
-              <span className="pill">프로바이더: {state.apiProvider}</span>
-              <span className="pill">보완 턴: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
-            </div>
-            <p className="small-muted">점진 배포/롤백 이전 즉시 실행 항목</p>
-            <ul className="major-readiness-list">
-              {(todayActions.length > 0 ? todayActions : ['즉시 실행 항목이 아직 생성되지 않았습니다.'])
-                .slice(0, 3)
-                .map((item, index) => <li key={`major-operate-action-${index}`}>{item}</li>)}
-            </ul>
-            {blockingIssues.length > 0 && (
-              <div className="major-blocking-box">
-                <strong>차단 이슈</strong>
-                <ul className="major-readiness-list compact">
-                  {blockingIssues.map((item, index) => <li key={`major-blocking-${index}`}>{item}</li>)}
-                </ul>
-              </div>
-            )}
-          </article>
+          <span className="pill">기본 출력 우선</span>
+          <span className="pill">보조 정보는 접힘</span>
+          <span className="pill">흐름: 복사 -&gt; 판단 -&gt; 참고</span>
         </div>
       </section>
 
@@ -201,6 +210,9 @@ export default function MajorWorkspace({
           />
         </div>
       </div>
+
+      {engineeringOverview}
     </section>
   );
 }
+

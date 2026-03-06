@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { ActionPriorityLegend, PriorityActionList } from './PriorityActionList';
 import { buildBeginnerQuickPrompt } from './beginner-prompt';
 import {
@@ -24,24 +24,10 @@ export default function BeginnerWorkspace({
   errorMessage,
   standardOutput,
   masterPrompt,
-  promptPolicyMeta,
-  apiProvider,
-  providerOptions,
-  modelOptions,
-  selectedModel,
-  isModelOptionsLoading,
-  showThinking,
-  showPromptPolicyMeta,
-  allowAdvancedToggle,
   showApiSettings = true,
   onVibeChange,
-  onProviderChange,
-  onModelChange,
-  onShowThinkingChange,
   onOpenSettings,
   onTransmute,
-  isAdvancedOpen,
-  onToggleAdvanced,
 }) {
   const [copyStatus, setCopyStatus] = useState('idle');
   const [copyMessage, setCopyMessage] = useState('');
@@ -80,16 +66,6 @@ export default function BeginnerWorkspace({
     ? quickPromptMeta.addedRequirements
     : [];
   const shouldWarnPromptGaps = quickPromptMeta.isEnhanced && quickPromptGaps.length > 0;
-  const promptPolicyMode = toText(promptPolicyMeta?.prompt_policy_mode, 'baseline');
-  const promptExampleMode = toText(promptPolicyMeta?.example_mode, 'none');
-  const promptSectionOrder = useMemo(
-    () => toStringArray(promptPolicyMeta?.prompt_sections),
-    [promptPolicyMeta],
-  );
-  const positiveRewriteCount = Number.isFinite(Number(promptPolicyMeta?.positive_rewrite_count))
-    ? Number(promptPolicyMeta?.positive_rewrite_count)
-    : 0;
-  const isPolicyApplied = Boolean(promptPolicyMeta?.policy_applied);
 
   useEffect(() => {
     setCopyStatus('idle');
@@ -146,61 +122,11 @@ export default function BeginnerWorkspace({
             API 키 설정
           </button>
         )}
-        {allowAdvancedToggle && (
-          <button type="button" className="btn btn-secondary" onClick={onToggleAdvanced}>
-            {isAdvancedOpen ? '고급 보기 닫기' : '고급 보기 열기'}
-          </button>
-        )}
       </div>
-
-      <details className="beginner-settings">
-        <summary>모델/설정(선택)</summary>
-        <div className="control-grid beginner-settings-grid">
-          <div className="form-group">
-            <label htmlFor="beginner-provider">프로바이더</label>
-            <select
-              id="beginner-provider"
-              value={apiProvider}
-              onChange={(event) => onProviderChange(event.target.value)}
-              disabled={status === 'processing'}
-            >
-              {providerOptions.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group">
-            <label htmlFor="beginner-model">모델</label>
-            <select
-              id="beginner-model"
-              value={selectedModel}
-              onChange={(event) => onModelChange(event.target.value)}
-              disabled={status === 'processing' || isModelOptionsLoading || modelOptions.length === 0}
-            >
-              {modelOptions.length === 0 && <option value="">모델 없음</option>}
-              {modelOptions.map((model) => (
-                <option key={model} value={model}>{model}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="checkbox-row">
-          <input
-            id="beginner-show-thinking"
-            type="checkbox"
-            checked={showThinking}
-            onChange={(event) => onShowThinkingChange(event.target.checked)}
-            disabled={status === 'processing'}
-          />
-          <label htmlFor="beginner-show-thinking">추론 레이어 포함</label>
-        </div>
-      </details>
 
       {status === 'idle' && (
         <p className="small-muted">
-          첫 실행에서는 “오늘 할 일 3개 + 바로 복사 프롬프트 + 점검 1~2개”만 보여줍니다.
+          첫 실행에서는 "오늘 할 일 3개 + 바로 복사 프롬프트 + 점검 1~2개"만 보여줍니다.
         </p>
       )}
       {status === 'processing' && <p>초안을 생성 중입니다. 잠시만 기다려 주세요.</p>}
@@ -247,34 +173,6 @@ export default function BeginnerWorkspace({
                 </ul>
               </div>
             )}
-            {showPromptPolicyMeta && (
-              <div className="prompt-meta-row">
-                <span className={`value-chip ${isPolicyApplied ? 'enhanced' : 'muted'}`}>
-                  엔진 정책 {promptPolicyMode}
-                </span>
-                <span className={`value-chip ${positiveRewriteCount > 0 ? 'pass' : 'muted'}`}>
-                  긍정형 정리 {positiveRewriteCount}
-                </span>
-                <span className="value-chip muted">
-                  예시 {promptExampleMode === 'minimal' ? '최소 허용' : '없음'}
-                </span>
-              </div>
-            )}
-            <div className="prompt-meta-row">
-              <span className={`value-chip ${quickPromptMeta.nearParaphrase ? 'warning' : 'pass'}`}>
-                원문 유사도 {Math.round(quickPromptMeta.similarity * 100)}%
-              </span>
-              <span className={`value-chip ${shouldWarnPromptGaps ? 'warning' : 'pass'}`}>
-                {shouldWarnPromptGaps
-                  ? `보완 항목 ${quickPromptGaps.length}개`
-                  : '보완 항목 없음'}
-              </span>
-            </div>
-            {showPromptPolicyMeta && promptSectionOrder.length > 0 && (
-              <p className="small-muted">
-                엔진 섹션: {promptSectionOrder.join(' -> ')}
-              </p>
-            )}
             <pre className="mono-block">{quickPrompt || '생성된 프롬프트가 없습니다.'}</pre>
             {copyMessage && <p className="small-muted">{copyMessage}</p>}
           </section>
@@ -283,4 +181,3 @@ export default function BeginnerWorkspace({
     </section>
   );
 }
-

@@ -1,27 +1,65 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import { WARNING_DOMAIN_LABEL } from './constants';
 import { toText } from './utils';
 
-const ISSUE_STATUS_LABEL = {
-  queued: '대기',
-  in_progress: '작업중',
-  recheck_needed: '재검사 필요',
-  resolved: '해결',
-};
+const ISSUE_STAGES = [
+  {
+    id: 'block',
+    title: '1단계 지금 막힘',
+    description: '바로 보완하지 않으면 다음 단계로 넘기기 어려운 이슈입니다.',
+    emptyText: '현재 즉시 차단 이슈는 없습니다.',
+  },
+  {
+    id: 'review',
+    title: '2단계 실행 전 검토',
+    description: '막히지는 않지만 구현 전에 합의하거나 정리할 부분입니다.',
+    emptyText: '현재 검토 필요 이슈는 없습니다.',
+  },
+  {
+    id: 'refine',
+    title: '3단계 나중에 다듬기',
+    description: '실행 이후 품질과 운영 안정성을 높이기 위한 후속 이슈입니다.',
+    emptyText: '현재 후속 개선 이슈는 없습니다.',
+  },
+];
 
-const ISSUE_STATUS_CLASS = {
-  queued: 'muted',
-  in_progress: 'warning',
-  recheck_needed: 'warning',
-  resolved: 'pass',
-};
+function resolveIssueStageId(warning) {
+  const severity = toText(warning?.severity).toLowerCase();
+  if (severity === 'critical' || severity === 'high') return 'block';
+  if (severity === 'medium') return 'review';
+  return 'refine';
+}
 
-function IssueStatusChip({ status }) {
-  const safeStatus = toText(status, 'queued');
+function IssueStageCard({ stage, items }) {
+  const visibleItems = items.slice(0, 4);
+  const remainingCount = Math.max(items.length - visibleItems.length, 0);
+
   return (
-    <span className={`value-chip ${ISSUE_STATUS_CLASS[safeStatus] || 'muted'}`}>
-      {ISSUE_STATUS_LABEL[safeStatus] || ISSUE_STATUS_LABEL.queued}
-    </span>
+    <article className={`issue-level-card stage-${stage.id}`}>
+      <div className="issue-level-card-head">
+        <h3>{stage.title}</h3>
+        <span className="pill">{items.length}개</span>
+      </div>
+      <p className="small-muted">{stage.description}</p>
+      {visibleItems.length === 0 && <p className="small-muted">{stage.emptyText}</p>}
+      {visibleItems.length > 0 && (
+        <ul className="issue-level-list">
+          {visibleItems.map((item) => {
+            const domainLabel = WARNING_DOMAIN_LABEL[toText(item.domain)] || toText(item.domain, '기타');
+            return (
+              <li key={item.id} className="issue-level-item">
+                <strong>{item.title}</strong>
+                <p className="small-muted">
+                  {item.severity?.toUpperCase()} | {domainLabel} | score {Number(item.score || 0)}
+                </p>
+                <p>{item.detail}</p>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {remainingCount > 0 && <p className="small-muted">외 {remainingCount}개 이슈가 더 있습니다.</p>}
+    </article>
   );
 }
 
@@ -29,131 +67,33 @@ export default function IssueLoopWorkspace({
   gateStatus,
   warningSummary,
   unresolvedWarnings,
-  selectedIssueId,
-  issueStatusById,
-  issueLoopMessage,
-  onSelectIssue,
-  onRunIssueAction,
-  onRecheckNow,
-  todayActions,
-  actionPack,
-  actionPackExportStatus,
-  onCreateActionPack,
-  onExportActionPack,
 }) {
-  const activeIssue = useMemo(
-    () => unresolvedWarnings.find((warning) => warning.id === selectedIssueId) || null,
-    [selectedIssueId, unresolvedWarnings],
+  const stageGroups = useMemo(
+    () => ISSUE_STAGES.map((stage) => ({
+      ...stage,
+      items: unresolvedWarnings.filter((warning) => resolveIssueStageId(warning) === stage.id),
+    })),
+    [unresolvedWarnings],
   );
-  const canExport = gateStatus !== 'blocked';
-  const topActions = Array.isArray(todayActions) ? todayActions.slice(0, 3) : [];
 
   return (
-    <section className="panel issue-loop-workspace">
+    <section className="panel issue-level-summary">
       <div className="panel-head">
-        <h2>이슈 루프 워크스페이스</h2>
-        <p>해결할 이슈를 선택하고 수정한 뒤 `지금 재검사`로 바로 검증합니다.</p>
+        <h2>이슈 수준 요약</h2>
+        <p>클릭으로 이동하지 않고, 현재 경고를 세 단계 수준으로 나눠 어떤 이슈인지 바로 확인합니다.</p>
       </div>
 
-      <div className="issue-loop-grid">
-        <section className="issue-panel">
-          <h3>요약</h3>
-          <div className="signal-pills">
-            <span className={`pill ${gateStatus === 'pass' ? '' : 'warning'}`}>게이트: {gateStatus}</span>
-            <span className="pill">강한 차단: {Number(warningSummary?.hardBlockCount || 0)}</span>
-            <span className="pill">총 경고: {Number(warningSummary?.total || unresolvedWarnings.length || 0)}</span>
-          </div>
-          {topActions.length > 0 && (
-            <ul className="issue-summary-list">
-              {topActions.map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
-            </ul>
-          )}
-          {issueLoopMessage && <p className="small-muted">{issueLoopMessage}</p>}
-          <div className="stack-actions">
-            <button type="button" className="btn btn-secondary" onClick={onRecheckNow}>
-              지금 재검사
-            </button>
-          </div>
-        </section>
-
-        <section className="issue-panel">
-          <h3>해결할 이슈</h3>
-          {unresolvedWarnings.length === 0 && <p className="small-muted">현재 미해결 이슈가 없습니다.</p>}
-          <div className="issue-list">
-            {unresolvedWarnings.map((issue) => {
-              const isActive = issue.id === selectedIssueId;
-              const status = toText(issueStatusById?.[issue.id], 'queued');
-              const domainLabel = WARNING_DOMAIN_LABEL[toText(issue.domain)] || toText(issue.domain, '-');
-              return (
-                <button
-                  key={issue.id}
-                  type="button"
-                  className={`issue-card${isActive ? ' is-active' : ''}`}
-                  onClick={() => onSelectIssue(issue.id)}
-                >
-                  <div className="issue-card-head">
-                    <strong>{issue.title}</strong>
-                    <IssueStatusChip status={status} />
-                  </div>
-                  <p className="small-muted">
-                    {issue.severity?.toUpperCase()} | {domainLabel} | score {Number(issue.score || 0)}
-                  </p>
-                  <p>{issue.detail}</p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+      <div className="signal-pills">
+        <span className={`pill ${gateStatus === 'pass' ? '' : 'warning'}`}>게이트: {gateStatus}</span>
+        <span className="pill">강한 차단: {Number(warningSummary?.hardBlockCount || 0)}</span>
+        <span className="pill">총 경고: {Number(warningSummary?.total || unresolvedWarnings.length || 0)}</span>
       </div>
 
-      <section className="issue-panel">
-        <h3>선택 이슈 액션</h3>
-        {!activeIssue && <p className="small-muted">이슈를 선택하면 가능한 액션이 표시됩니다.</p>}
-        {activeIssue && (
-          <>
-            <div className="issue-card-head">
-              <strong>{activeIssue.title}</strong>
-              <IssueStatusChip status={toText(issueStatusById?.[activeIssue.id], 'queued')} />
-            </div>
-            <div className="stack-actions">
-              {activeIssue.actions.map((action) => (
-                <button
-                  key={`${activeIssue.id}-${action.id}`}
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => onRunIssueAction(activeIssue.id, action.id)}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      <section className="issue-panel">
-        <h3>내보내기</h3>
-        <div className="stack-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={onCreateActionPack}
-            disabled={!canExport}
-          >
-            실행 팩 생성
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={onExportActionPack}
-            disabled={!actionPack}
-          >
-            실행 팩 복사
-          </button>
-        </div>
-        {!canExport && <p className="small-muted">게이트가 blocked 상태라 내보내기가 비활성화되었습니다.</p>}
-        {actionPackExportStatus && <p className="small-muted">{actionPackExportStatus}</p>}
-      </section>
+      <div className="issue-level-grid">
+        {stageGroups.map((stage) => (
+          <IssueStageCard key={stage.id} stage={stage} items={stage.items} />
+        ))}
+      </div>
     </section>
   );
 }

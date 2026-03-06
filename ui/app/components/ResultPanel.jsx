@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AX_LAYER_TABS, INTENT_FIELD_ORDER } from './result-panel/constants';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { INTENT_FIELD_ORDER } from './result-panel/constants';
 import {
   appendLine,
   deepClone,
@@ -10,6 +10,7 @@ import {
 import {
   buildContextOutputs,
   buildLogicMap,
+  buildPreferredStackRequestLine,
   buildProblemFrame,
 } from './result-panel/builders';
 import {
@@ -32,7 +33,6 @@ import {
   L3ContextOptimizer,
   L4IntegritySimulator,
   L5ActionBinder,
-  LayerTabButton,
 } from './result-panel/Sections';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
 import { useActionPackState } from './result-panel/hooks/useActionPackState.js';
@@ -64,6 +64,8 @@ export default function ResultPanel({
   validationReport,
   clarifyLoop,
   clarifyApplyNotice,
+  selectedImplementationStack: externalSelectedImplementationStack,
+  onSelectImplementationStack,
   personaCapabilities,
   onRefreshHybrid,
   onSyncWarningToClarify,
@@ -89,6 +91,13 @@ export default function ResultPanel({
     ? Number(promptPolicyMeta?.positive_rewrite_count)
     : 0;
   const shouldShowValidationMeta = safeCapabilities.showValidationMeta === true;
+  const shouldShowCompactDeliveryPanel = safeCapabilities.showCompactDeliveryPanel === true;
+  const shouldAllowIntegrityActions = safeCapabilities.allowIntegrityActions !== false;
+  const shouldAllowExecutionActions = safeCapabilities.allowExecutionActions !== false;
+  const shouldShowLayerL1Panel = safeCapabilities.showLayerL1Panel !== false;
+  const shouldShowLayerL2Panel = safeCapabilities.showLayerL2Panel !== false;
+  const shouldShowLayerOutputPanel = safeCapabilities.showLayerOutputPanel !== false;
+  const shouldCollapseSupplementaryPanels = shouldShowCompactDeliveryPanel;
   const validationSeverity = toText(validationReport?.severity, 'low');
   const validationWarnings = useMemo(
     () => toStringArray(validationReport?.warnings).slice(0, 3),
@@ -110,7 +119,10 @@ export default function ResultPanel({
     [validationReport],
   );
   const canSyncToManualLoop = typeof onSyncWarningToClarify === 'function';
-
+  const hybridGuideFrameCount = useMemo(
+    () => (Array.isArray(hybridStackGuide?.frames) ? hybridStackGuide.frames.filter((item) => isObject(item)).length : 0),
+    [hybridStackGuide],
+  );
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
   const [hypothesis, setHypothesis] = useState(buildProblemFrame({}));
@@ -120,13 +132,20 @@ export default function ResultPanel({
   const [changedAxis, setChangedAxis] = useState('');
   const [syncHint, setSyncHint] = useState('');
   const [permissionGuardEnabled, setPermissionGuardEnabled] = useState(false);
-  const [contextOutputs, setContextOutputs] = useState(
+  const [internalSelectedImplementationStack, setInternalSelectedImplementationStack] = useState(null);
+  const selectedImplementationStack = isObject(externalSelectedImplementationStack)
+    ? externalSelectedImplementationStack
+    : internalSelectedImplementationStack;
+  const setSelectedImplementationStack = typeof onSelectImplementationStack === 'function'
+    ? onSelectImplementationStack
+    : setInternalSelectedImplementationStack;  const [contextOutputs, setContextOutputs] = useState(
     buildContextOutputs({
       devSpec: '',
       nondevSpec: '',
       masterPrompt: '',
       hypothesis: buildProblemFrame({}),
       logicMap: buildLogicMap({}, buildProblemFrame({})),
+      preferredStack: null,
     }),
   );
   const [exportStatus, setExportStatus] = useState('');
@@ -134,9 +153,6 @@ export default function ResultPanel({
   const [l1FocusGuide, setL1FocusGuide] = useState(buildEmptyL1FocusGuide());
   const [isSuggestedHypothesisPreviewOpen, setIsSuggestedHypothesisPreviewOpen] = useState(false);
   const [l1SuggestionStatus, setL1SuggestionStatus] = useState('');
-  const [selectedIssueId, setSelectedIssueId] = useState('');
-  const [issueStatusById, setIssueStatusById] = useState({});
-  const [issueLoopMessage, setIssueLoopMessage] = useState('');
 
   const {
     actionPack,
@@ -161,15 +177,13 @@ export default function ResultPanel({
     changedAxis,
     syncHint,
     permissionGuardEnabled,
+    selectedImplementationStack: deepClone(selectedImplementationStack),
     contextOutputs: deepClone(contextOutputs),
     exportStatus,
     resolvedWarningIds: deepClone(resolvedWarningIds),
     l1FocusGuide: deepClone(l1FocusGuide),
     isSuggestedHypothesisPreviewOpen,
     l1SuggestionStatus,
-    selectedIssueId,
-    issueStatusById: deepClone(issueStatusById),
-    issueLoopMessage,
     ...buildActionPackSnapshot(),
   }), [
     activeLayer,
@@ -183,11 +197,9 @@ export default function ResultPanel({
     isSuggestedHypothesisPreviewOpen,
     l1FocusGuide,
     l1SuggestionStatus,
-    selectedIssueId,
-    issueStatusById,
-    issueLoopMessage,
     logicMap,
     permissionGuardEnabled,
+    selectedImplementationStack,
     resolvedWarningIds,
     syncHint,
   ]);
@@ -202,6 +214,8 @@ export default function ResultPanel({
     setChangedAxis(toText(safe.changedAxis));
     setSyncHint(toText(safe.syncHint));
     setPermissionGuardEnabled(Boolean(safe.permissionGuardEnabled));
+    const nextPreferredStack = isObject(safe.selectedImplementationStack) ? deepClone(safe.selectedImplementationStack) : null;
+    setSelectedImplementationStack(nextPreferredStack);
     setContextOutputs(isObject(safe.contextOutputs)
       ? deepClone(safe.contextOutputs)
       : buildContextOutputs({
@@ -210,15 +224,13 @@ export default function ResultPanel({
         masterPrompt,
         hypothesis: buildProblemFrame({}),
         logicMap: buildLogicMap({}, buildProblemFrame({})),
+        preferredStack: nextPreferredStack,
       }));
     setExportStatus(toText(safe.exportStatus));
     setResolvedWarningIds(Array.isArray(safe.resolvedWarningIds) ? deepClone(safe.resolvedWarningIds) : []);
     setL1FocusGuide(isObject(safe.l1FocusGuide) ? deepClone(safe.l1FocusGuide) : buildEmptyL1FocusGuide());
     setIsSuggestedHypothesisPreviewOpen(Boolean(safe.isSuggestedHypothesisPreviewOpen));
     setL1SuggestionStatus(toText(safe.l1SuggestionStatus));
-    setSelectedIssueId(toText(safe.selectedIssueId));
-    setIssueStatusById(isObject(safe.issueStatusById) ? deepClone(safe.issueStatusById) : {});
-    setIssueLoopMessage(toText(safe.issueLoopMessage));
     restoreActionPackSnapshot(safe);
   }, [devSpec, masterPrompt, nondevSpec, restoreActionPackSnapshot]);
 
@@ -251,21 +263,20 @@ export default function ResultPanel({
     setChangedAxis('');
     setSyncHint('');
     setPermissionGuardEnabled(false);
+    setSelectedImplementationStack(null);
     setContextOutputs(buildContextOutputs({
       devSpec,
       nondevSpec,
       masterPrompt,
       hypothesis: nextHypothesis,
       logicMap: nextLogicMap,
+      preferredStack: null,
     }));
     setExportStatus('');
     setResolvedWarningIds([]);
     setL1FocusGuide(buildEmptyL1FocusGuide());
     setIsSuggestedHypothesisPreviewOpen(false);
     setL1SuggestionStatus('');
-    setSelectedIssueId('');
-    setIssueStatusById({});
-    setIssueLoopMessage('');
     resetActionPackState();
     resetCtaHistory();
     setActiveLayer('L1');
@@ -282,6 +293,30 @@ export default function ResultPanel({
     () => toStringArray(standardOutput?.오늘_할_일_3개),
     [standardOutput],
   );
+
+  useEffect(() => {
+    setContextOutputs(buildContextOutputs({
+      devSpec,
+      nondevSpec,
+      masterPrompt,
+      hypothesis,
+      logicMap,
+      preferredStack: selectedImplementationStack,
+    }));
+  }, [devSpec, hypothesis, logicMap, masterPrompt, nondevSpec, selectedImplementationStack]);
+
+  const compactRequest = useMemo(() => {
+    const standardRequest = toText(standardOutput?.수정요청_변환?.표준_요청);
+    const baseRequest = standardRequest || toText(standardOutput?.수정요청_변환?.짧은_요청, contextOutputs.aiCoding);
+    const stackRequestLine = buildPreferredStackRequestLine(selectedImplementationStack);
+
+    if (stackRequestLine && baseRequest) {
+      return `${stackRequestLine}
+${baseRequest}`;
+    }
+
+    return stackRequestLine || baseRequest;
+  }, [contextOutputs.aiCoding, selectedImplementationStack, standardOutput]);
 
   // 4) L1/L2 intelligence signals
   const l1Intelligence = useMemo(
@@ -368,26 +403,6 @@ export default function ResultPanel({
     () => getGateStatusFromWarnings(unresolvedWarnings),
     [unresolvedWarnings],
   );
-
-  useEffect(() => {
-    if (unresolvedWarnings.length === 0) {
-      setSelectedIssueId('');
-      setIssueStatusById({});
-      return;
-    }
-
-    setSelectedIssueId((previous) => (
-      unresolvedWarnings.some((warning) => warning.id === previous)
-        ? previous
-        : unresolvedWarnings[0].id
-    ));
-
-    setIssueStatusById((previous) => unresolvedWarnings.reduce((acc, warning) => {
-      acc[warning.id] = previous[warning.id] || 'queued';
-      return acc;
-    }, {}));
-  }, [unresolvedWarnings]);
-
   const clearL1FocusGuide = () => {
     setL1FocusGuide(buildEmptyL1FocusGuide());
   };
@@ -547,6 +562,14 @@ export default function ResultPanel({
     });
   };
 
+  const handleSelectImplementationStack = useCallback((nextStack) => {
+    const normalizedStack = isObject(nextStack) ? deepClone(nextStack) : null;
+    setSelectedImplementationStack(normalizedStack);
+    setExportStatus(normalizedStack
+      ? `${normalizedStack.name} 기준으로 AI 프롬프트에 구현 스택을 반영했습니다.`
+      : '구현 스택 선택을 해제했습니다.');
+  }, []);
+
   const handleExportContext = async () => runCtaAction({
     layerId: 'L3',
     actionId: 'export-context',
@@ -558,13 +581,14 @@ export default function ResultPanel({
         masterPrompt,
         hypothesis,
         logicMap,
+        preferredStack: selectedImplementationStack,
       });
       setContextOutputs(nextOutputs);
 
       const aiCodingPrompt = toText(nextOutputs.aiCoding);
 
       if (!aiCodingPrompt) {
-        setExportStatus('복사할 AI 코딩용 실행 프롬프트가 아직 없습니다.');
+        setExportStatus('복사할 AI용 프롬프트가 아직 없습니다.');
         return;
       }
 
@@ -575,9 +599,9 @@ export default function ResultPanel({
 
       try {
         await navigator.clipboard.writeText(aiCodingPrompt);
-        setExportStatus('AI 코딩용 실행 프롬프트를 클립보드에 복사했습니다.');
+        setExportStatus('AI에 넣을 프롬프트를 클립보드에 복사했습니다.');
       } catch {
-        setExportStatus('AI 코딩용 실행 프롬프트 복사에 실패했습니다. 화면 출력본을 그대로 사용하세요.');
+        setExportStatus('AI용 프롬프트 복사에 실패했습니다. 화면 출력본을 그대로 사용하세요.');
       }
     },
   });
@@ -640,7 +664,7 @@ export default function ResultPanel({
 
   const moveToLayerFromWarning = (layerId, warningId, targetWarning = null) => {
     const actionId = layerId === 'L1' ? 'go-l1' : 'go-l2';
-    const actionLabel = layerId === 'L1' ? 'L1 열기' : 'L2 열기';
+    const actionLabel = layerId === 'L1' ? '요구 확정 보기' : '로직 동기화 보기';
 
     runCtaAction({
       layerId: 'L4',
@@ -696,55 +720,6 @@ export default function ResultPanel({
     }
   };
 
-  const handleSelectIssue = (warningId) => {
-    setSelectedIssueId(warningId);
-    setIssueStatusById((previous) => ({
-      ...previous,
-      [warningId]: previous[warningId] === 'resolved' ? 'queued' : 'in_progress',
-    }));
-    setIssueLoopMessage(`선택 이슈: ${warningId}`);
-  };
-
-  const runIssueAction = (warningId, actionId) => {
-    setSelectedIssueId(warningId);
-    setIssueStatusById((previous) => ({
-      ...previous,
-      [warningId]: 'in_progress',
-    }));
-
-    handleWarningAction(warningId, actionId);
-
-    setIssueStatusById((previous) => ({
-      ...previous,
-      [warningId]: actionId === 'mark-resolved' ? 'resolved' : 'recheck_needed',
-    }));
-    setIssueLoopMessage(
-      actionId === 'mark-resolved'
-        ? '이슈를 해결 처리했습니다.'
-        : '수정을 반영했습니다. 지금 재검사로 검증하세요.',
-    );
-  };
-
-  const handleRecheckNow = () => {
-    setActiveLayer('L4');
-
-    if (!selectedIssueId) {
-      setIssueLoopMessage('재검사를 위해 L4를 열었습니다.');
-      return;
-    }
-
-    const stillUnresolved = unresolvedWarnings.some((warning) => warning.id === selectedIssueId);
-    setIssueStatusById((previous) => ({
-      ...previous,
-      [selectedIssueId]: stillUnresolved ? 'in_progress' : 'resolved',
-    }));
-    setIssueLoopMessage(
-      stillUnresolved
-        ? '선택 이슈가 아직 미해결입니다. 보완 후 다시 재검사하세요.'
-        : '선택 이슈가 해결 상태로 확인되었습니다.',
-    );
-  };
-
   const applyAutoFixes = () => {
     runCtaAction({
       layerId: 'L4',
@@ -766,7 +741,7 @@ export default function ResultPanel({
     runCtaAction({
       layerId: 'L5',
       actionId: 'create-action-pack',
-      label: '실행 팩 생성',
+      label: '실행용 묶음 만들기',
       meta: { gateStatus, preset: actionPackPresetId },
       mutate: () => {
         buildAndStoreActionPack({
@@ -806,7 +781,7 @@ export default function ResultPanel({
   const exportActionPack = async () => runCtaAction({
     layerId: 'L5',
     actionId: 'export-action-pack',
-    label: '실행 팩 복사',
+    label: '실행용 묶음 복사',
     meta: { preset: actionPackPresetId },
     mutate: async () => {
       await exportCurrentActionPack();
@@ -849,13 +824,75 @@ export default function ResultPanel({
         </button>
       </div>
 
-      {(hybridStackGuideStatus !== 'idle' || hybridStackGuide) && (
-        <section className="panel hybrid-guide-wrap">
-          <HybridStackGuidePanel
-            guide={hybridStackGuide}
-            status={hybridStackGuideStatus}
-          />
+      {shouldShowCompactDeliveryPanel && (
+        <section className="panel compact-delivery-panel">
+          <div className="panel-head compact-delivery-head">
+            <div>
+              <h2>바로 쓰는 결과</h2>
+              <p>사람에게 보낼 요청문과 AI에 넣을 프롬프트만 남겨 바로 사용할 수 있게 정리했습니다.</p>
+            </div>
+            <button type="button" className="btn btn-primary" onClick={handleExportContext}>
+              AI 프롬프트 복사
+            </button>
+          </div>
+          <div className="compact-delivery-grid">
+            <section className="compact-delivery-card">
+              <h3>사람에게 보낼 요청문</h3>
+              <pre className="mono-block compact-delivery-block">
+                {compactRequest || '아직 생성된 요청문이 없습니다.'}
+              </pre>
+            </section>
+            <section className="compact-delivery-card">
+              <h3>AI에 넣을 프롬프트</h3>
+              {selectedImplementationStack && (
+                <div className="signal-pills compact-delivery-meta">
+                  <span className="pill">선택 스택: {selectedImplementationStack.name}</span>
+                </div>
+              )}
+              <pre className="mono-block compact-delivery-block">
+                {contextOutputs.aiCoding || '아직 생성된 프롬프트가 없습니다.'}
+              </pre>
+              <p className="small-muted compact-delivery-status">{exportStatus || '아직 복사 전'}</p>
+            </section>
+          </div>
         </section>
+      )}
+
+      {(hybridStackGuideStatus !== 'idle' || hybridStackGuide) && (
+        shouldCollapseSupplementaryPanels ? (
+          <details className="collapsible-panel supplementary-panel">
+            <summary className="collapsible-panel-summary">
+              <div>
+                <h2>하이브리드 스택 가이드 보기</h2>
+                <p>필요할 때만 추천 스택을 펼쳐 참고합니다.</p>
+              </div>
+              <div className="signal-pills collapsible-panel-pills">
+                <span className="pill">상태: {hybridStackGuideStatus}</span>
+                <span className="pill">프레임: {hybridGuideFrameCount}</span>
+                {selectedImplementationStack && <span className="pill">선택: {selectedImplementationStack.name}</span>}
+              </div>
+            </summary>
+            <div className="collapsible-panel-body">
+              <section className="panel hybrid-guide-wrap">
+                <HybridStackGuidePanel
+                  guide={hybridStackGuide}
+                  status={hybridStackGuideStatus}
+                  selectedStackId={selectedImplementationStack?.id || ''}
+                  onSelectStack={handleSelectImplementationStack}
+                />
+              </section>
+            </div>
+          </details>
+        ) : (
+          <section className="panel hybrid-guide-wrap">
+            <HybridStackGuidePanel
+                  guide={hybridStackGuide}
+                  status={hybridStackGuideStatus}
+                  selectedStackId={selectedImplementationStack?.id || ''}
+                  onSelectStack={handleSelectImplementationStack}
+                />
+          </section>
+        )
       )}
 
       {shouldShowAdvancedPromptPolicyMeta && (
@@ -905,117 +942,139 @@ export default function ResultPanel({
         </section>
       )}
 
-      <IssueLoopWorkspace
-        gateStatus={gateStatus}
-        warningSummary={warningSummary}
-        unresolvedWarnings={unresolvedWarnings}
-        selectedIssueId={selectedIssueId}
-        issueStatusById={issueStatusById}
-        issueLoopMessage={issueLoopMessage}
-        onSelectIssue={handleSelectIssue}
-        onRunIssueAction={runIssueAction}
-        onRecheckNow={handleRecheckNow}
-        todayActions={todayActions}
-        actionPack={actionPack}
-        actionPackExportStatus={actionPackExportStatus}
-        onCreateActionPack={createActionPack}
-        onExportActionPack={exportActionPack}
-      />
-
-      {shouldShowLayerPanels && (
-        <details className="advanced-diagnostics">
-          <summary>Advanced Diagnostics (L1~L5)</summary>
-          <section className="panel layer-panel">
-          <h2>Layer Tab (AX)</h2>
-          <p className="layer-panel-intro">탭에서 읽고 복사하는 흐름이 아니라, 확인/수정/적용 중심으로 동작합니다.</p>
-
-          <div className="layer-tabs">
-            {AX_LAYER_TABS.map((tab) => (
-              <LayerTabButton key={tab.id} tab={tab} activeLayer={activeLayer} onSelect={setActiveLayer} />
-            ))}
-          </div>
-
-          <div className="layer-content">
-          {activeLayer === 'L1' && (
-            <L1HypothesisEditor
-              hypothesis={hypothesis}
-              onChangeHypothesis={handleChangeHypothesis}
-              l1Intelligence={l1Intelligence}
-              l1FocusGuide={l1FocusGuide}
-              hypothesisConfirmed={hypothesisConfirmed}
-              hypothesisConfirmedStamp={hypothesisConfirmedStamp}
-              suggestionPreviewOpen={isSuggestedHypothesisPreviewOpen}
-              suggestionStatus={l1SuggestionStatus}
-              suggestedHypothesisDiffByField={suggestedHypothesisDiffByField}
-              showSuggestionInputGuide={shouldShowSuggestionInputGuide}
-              suggestionInputExamples={suggestionInputExamples}
-              onConfirmHypothesis={confirmHypothesis}
-              onPreviewSuggestedHypothesis={previewSuggestedHypothesis}
-              onApplySuggestedHypothesis={applySuggestedHypothesis}
-              onClearL1FocusGuide={clearL1FocusGuide}
-            />
-          )}
-          {activeLayer === 'L2' && (
-            <L2LogicMapper
-              logicMap={logicMap}
-              changedAxis={changedAxis}
-              syncHint={syncHint}
-              l2Intelligence={l2Intelligence}
-              onChangeLogicAxis={handleChangeLogicAxis}
-              onApplySync={applySync}
-            />
-          )}
-          {activeLayer === 'L3' && (
-            <L3ContextOptimizer
-              contextOutputs={contextOutputs}
-              exportStatus={exportStatus}
-              onExportContext={handleExportContext}
-            />
-          )}
-          {activeLayer === 'L4' && (
-            <L4IntegritySimulator
+      {shouldCollapseSupplementaryPanels ? (
+        <details className="collapsible-panel supplementary-panel">
+          <summary className="collapsible-panel-summary">
+            <div>
+              <h2>이슈 수준 요약 보기</h2>
+              <p>기본 출력 아래에 접어두고, 필요할 때만 펼쳐 세부 이슈를 확인합니다.</p>
+            </div>
+            <div className="signal-pills collapsible-panel-pills">
+              <span className="pill">총 이슈: {warningSummary.total}</span>
+              <span className="pill">즉시 확인: {warningSummary.hardBlockCount}</span>
+              <span className="pill">게이트: {gateStatus}</span>
+            </div>
+          </summary>
+          <div className="collapsible-panel-body">
+            <IssueLoopWorkspace
               gateStatus={gateStatus}
-              integritySignals={integritySignals}
-              topWarnings={visibleTopWarnings}
-              remainingWarnings={visibleRemainingWarnings}
               warningSummary={warningSummary}
-              compactMode={isCompactIntegrityView}
-              canSyncToManualLoop={canSyncToManualLoop}
-              onWarningAction={handleWarningAction}
-              onApplyAutoFixes={applyAutoFixes}
+              unresolvedWarnings={unresolvedWarnings}
             />
-          )}
-          {activeLayer === 'L5' && (
-            <L5ActionBinder
-              todayActions={todayActions}
-              gateStatus={gateStatus}
-              actionPack={actionPack}
-              actionPackPresetId={actionPackPresetId}
-              actionPackPresets={actionPackPresets}
-              actionPackExportStatus={actionPackExportStatus}
-              validationSeverity={validationSeverity}
-              blockingIssues={blockingIssues}
-              clarifyQuestions={manualLoopQuestions}
-              clarifyAnswers={manualLoopAnswers}
-              canSubmitClarifications={canSubmitManualLoop}
-              clarifyApplyNotice={clarifyApplyNotice}
-              isProcessing={status === 'processing'}
-              canSyncToManualLoop={canSyncToManualLoop}
-              onChangeActionPackPreset={changeActionPackPreset}
-              onCreateActionPack={createActionPack}
-              onExportActionPack={exportActionPack}
-              onSyncToManualLoop={syncSuggestedQuestionsToManualLoop}
-              onSetClarifyAnswer={onSetClarifyAnswer}
-              onRemoveClarifyQuestion={onRemoveClarifyQuestion}
-              onApplyClarifications={onApplyClarifications}
-              onClearClarifyQuestions={onClearClarifyQuestions}
-            />
-          )}
           </div>
-          </section>
         </details>
+      ) : (
+        <IssueLoopWorkspace
+          gateStatus={gateStatus}
+          warningSummary={warningSummary}
+          unresolvedWarnings={unresolvedWarnings}
+        />
       )}
 
+      {shouldShowLayerPanels && (
+        <section className="panel task-workbench-panel">
+          <div className="panel-head">
+            <h2>작업 워크벤치</h2>
+            <p>레이어를 눌러 이동하지 않고, 요구 확정부터 경고 해소와 전달 출력까지 한 화면에서 처리합니다.</p>
+          </div>
+          <div className="signal-pills task-workbench-meta">
+            <span className="pill">현재 포커스: {activeLayer}</span>
+            <span className="pill">게이트: {gateStatus}</span>
+            <span className="pill">미해결 경고: {unresolvedWarnings.length}</span>
+            <span className="pill">보완 질문: {manualLoopQuestionCount}</span>
+          </div>
+
+          <div className="task-workbench-grid">
+            <section className={`task-workbench-card task-workbench-card-wide ${activeLayer === 'L4' ? 'is-active' : ''}`}>
+              <L4IntegritySimulator
+                gateStatus={gateStatus}
+                integritySignals={integritySignals}
+                topWarnings={visibleTopWarnings}
+                remainingWarnings={visibleRemainingWarnings}
+                warningSummary={warningSummary}
+                compactMode={isCompactIntegrityView}
+                canSyncToManualLoop={canSyncToManualLoop}
+                allowActions={shouldAllowIntegrityActions}
+                onWarningAction={handleWarningAction}
+                onApplyAutoFixes={applyAutoFixes}
+              />
+            </section>
+
+            <section className={`task-workbench-card ${activeLayer === 'L5' ? 'is-active' : ''}`}>
+              <L5ActionBinder
+                todayActions={todayActions}
+                gateStatus={gateStatus}
+                actionPack={actionPack}
+                actionPackPresetId={actionPackPresetId}
+                actionPackPresets={actionPackPresets}
+                actionPackExportStatus={actionPackExportStatus}
+                validationSeverity={validationSeverity}
+                blockingIssues={blockingIssues}
+                clarifyQuestions={manualLoopQuestions}
+                clarifyAnswers={manualLoopAnswers}
+                canSubmitClarifications={canSubmitManualLoop}
+                clarifyApplyNotice={clarifyApplyNotice}
+                isProcessing={status === 'processing'}
+                canSyncToManualLoop={canSyncToManualLoop}
+                allowExecutionActions={shouldAllowExecutionActions}
+                onChangeActionPackPreset={changeActionPackPreset}
+                onCreateActionPack={createActionPack}
+                onExportActionPack={exportActionPack}
+                onSyncToManualLoop={syncSuggestedQuestionsToManualLoop}
+                onSetClarifyAnswer={onSetClarifyAnswer}
+                onRemoveClarifyQuestion={onRemoveClarifyQuestion}
+                onApplyClarifications={onApplyClarifications}
+                onClearClarifyQuestions={onClearClarifyQuestions}
+              />
+            </section>
+
+            {shouldShowLayerL1Panel && (
+              <section className={`task-workbench-card ${activeLayer === 'L1' ? 'is-active' : ''}`}>
+                <L1HypothesisEditor
+                  hypothesis={hypothesis}
+                  onChangeHypothesis={handleChangeHypothesis}
+                  l1Intelligence={l1Intelligence}
+                  l1FocusGuide={l1FocusGuide}
+                  hypothesisConfirmed={hypothesisConfirmed}
+                  hypothesisConfirmedStamp={hypothesisConfirmedStamp}
+                  suggestionPreviewOpen={isSuggestedHypothesisPreviewOpen}
+                  suggestionStatus={l1SuggestionStatus}
+                  suggestedHypothesisDiffByField={suggestedHypothesisDiffByField}
+                  showSuggestionInputGuide={shouldShowSuggestionInputGuide}
+                  suggestionInputExamples={suggestionInputExamples}
+                  onConfirmHypothesis={confirmHypothesis}
+                  onPreviewSuggestedHypothesis={previewSuggestedHypothesis}
+                  onApplySuggestedHypothesis={applySuggestedHypothesis}
+                  onClearL1FocusGuide={clearL1FocusGuide}
+                />
+              </section>
+            )}
+
+            {shouldShowLayerL2Panel && (
+              <section className={`task-workbench-card ${activeLayer === 'L2' ? 'is-active' : ''}`}>
+                <L2LogicMapper
+                  logicMap={logicMap}
+                  changedAxis={changedAxis}
+                  syncHint={syncHint}
+                  l2Intelligence={l2Intelligence}
+                  onChangeLogicAxis={handleChangeLogicAxis}
+                  onApplySync={applySync}
+                />
+              </section>
+            )}
+
+            {shouldShowLayerOutputPanel && (
+              <section className={`task-workbench-card task-workbench-card-full ${activeLayer === 'L3' ? 'is-active' : ''}`}>
+                <L3ContextOptimizer
+                  contextOutputs={contextOutputs}
+                  exportStatus={exportStatus}
+                  onExportContext={handleExportContext}
+                />
+              </section>
+            )}
+          </div>
+        </section>
+      )}
       {shouldShowCtaHistory && (
         <CtaHistoryPanel
           entries={ctaHistory}
@@ -1025,3 +1084,31 @@ export default function ResultPanel({
     </section>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

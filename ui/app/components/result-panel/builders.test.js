@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildContextOutputs } from './builders.js';
 
@@ -59,4 +59,24 @@ test('buildContextOutputs keeps only the core copy-ready sections in the aiCodin
   assert.doesNotMatch(outputs.aiCoding, /\[Impact\]/);
   assert.doesNotMatch(outputs.aiCoding, /\[Today Actions\]/);
   assert.doesNotMatch(outputs.aiCoding, /Requirements:/);
+});
+
+test('buildContextOutputs prepends the selected implementation stack preference to the aiCoding prompt', () => {
+  const outputs = buildContextOutputs({
+    devSpec: '',
+    nondevSpec: '',
+    masterPrompt: 'You are an implementation assistant.\n\n[Summary]\nBuild it.',
+    hypothesis: {},
+    logicMap: {},
+    preferredStack: {
+      id: 'option_a::django',
+      name: 'Django/Flask (Python) + PostgreSQL + React/Vue.js',
+    },
+  });
+
+  assert.match(outputs.aiCoding, /^\[Implementation Stack Preference\]/);
+  assert.match(outputs.aiCoding, /Preferred stack: Django\/Flask \(Python\) \+ PostgreSQL \+ React\/Vue\.js/);
+  assert.match(outputs.aiCoding, /Preferred language: Python/);
+  assert.match(outputs.aiCoding, /Preferred technologies: Django\/Flask, PostgreSQL, React\/Vue\.js/);
+  assert.match(outputs.aiCoding, /You are an implementation assistant\./);
 });

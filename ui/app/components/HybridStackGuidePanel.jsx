@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -31,14 +31,45 @@ function confidenceLabel(value) {
   return '적합도 낮음';
 }
 
+function buildStackId(frame, stack) {
+  return `${toText(frame?.id, 'frame')}::${toText(stack?.name, 'stack')}`;
+}
+
+function StackContent({ stack, confidence, compact = false }) {
+  return (
+    <>
+      <div className="hybrid-stack-head">
+        <strong>{toText(stack?.name, 'stack')}</strong>
+        <span className={`confidence-chip confidence-${confidence}`}>
+          {confidenceLabel(confidence)}
+        </span>
+      </div>
+      <p>{toText(stack?.why, '추천 이유 정보 없음')}</p>
+      {toText(stack?.fit) && (
+        <p className="small-muted">
+          맞는 상황: {toText(stack.fit)}
+        </p>
+      )}
+      {!compact && toText(stack?.risk) && (
+        <p className="small-muted">
+          주의점: {toText(stack.risk)}
+        </p>
+      )}
+    </>
+  );
+}
+
 export default function HybridStackGuidePanel({
   guide,
   status = 'idle',
   compact = false,
   title = '하이브리드 스택 가이드',
+  selectedStackId = '',
+  onSelectStack,
 }) {
   const frames = toFrameList(guide?.frames);
   const guideModel = toText(guide?.model);
+  const isSelectable = typeof onSelectStack === 'function';
 
   return (
     <section className={`hybrid-guide-panel ${compact ? 'is-compact' : ''}`}>
@@ -83,25 +114,32 @@ export default function HybridStackGuidePanel({
                   <ul className="hybrid-stack-list">
                     {stacks.map((stack) => {
                       const confidence = normalizeConfidence(stack.confidence);
+                      const stackId = buildStackId(frame, stack);
+                      const isSelected = selectedStackId === stackId;
+                      const stackContent = (
+                        <StackContent stack={stack} confidence={confidence} compact={compact} />
+                      );
+
                       return (
-                        <li key={`${toText(frame.id)}-${toText(stack.name)}`} className="hybrid-stack-item">
-                          <div className="hybrid-stack-head">
-                            <strong>{toText(stack.name, 'stack')}</strong>
-                            <span className={`confidence-chip confidence-${confidence}`}>
-                              {confidenceLabel(confidence)}
-                            </span>
-                          </div>
-                          <p>{toText(stack.why, '추천 이유 정보 없음')}</p>
-                          {toText(stack.fit) && (
-                            <p className="small-muted">
-                              맞는 상황: {toText(stack.fit)}
-                            </p>
-                          )}
-                          {!compact && toText(stack.risk) && (
-                            <p className="small-muted">
-                              주의점: {toText(stack.risk)}
-                            </p>
-                          )}
+                        <li
+                          key={stackId}
+                          className={`hybrid-stack-item ${isSelectable ? 'is-selectable' : ''} ${isSelected ? 'is-selected' : ''}`.trim()}
+                        >
+                          {isSelectable ? (
+                            <button
+                              type="button"
+                              className="hybrid-stack-button"
+                              aria-pressed={isSelected}
+                              onClick={() => onSelectStack(isSelected ? null : {
+                                id: stackId,
+                                name: toText(stack.name, 'stack'),
+                                frameId: toText(frame.id),
+                                frameLabel: toText(frame.label, '옵션'),
+                              })}
+                            >
+                              {stackContent}
+                            </button>
+                          ) : stackContent}
                         </li>
                       );
                     })}

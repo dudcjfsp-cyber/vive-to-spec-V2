@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildWarningSummary,
@@ -107,7 +107,7 @@ test('buildIntegritySignals detects data, permission, and coherence failures', (
   const result = buildIntegritySignals({
     standardOutput: {
       권한_규칙: [
-        { 역할: '운영자', 삭제: true },
+        { 역할: '상담원', 삭제: true },
       ],
     },
     permissionGuardEnabled: false,
@@ -121,10 +121,33 @@ test('buildIntegritySignals detects data, permission, and coherence failures', (
   assert.equal(result.dataFlow, 'fail');
   assert.equal(result.permission, 'fail');
   assert.equal(result.coherence, 'fail');
-  assert.deepEqual(result.deleteRoles, ['운영자']);
+  assert.deepEqual(result.deleteRoles, ['상담원']);
+  assert.deepEqual(result.riskyDeleteRoles, ['상담원']);
   assert.equal(result.hasPermissionConflict, true);
   assert.equal(result.hasIntentMismatch, true);
   assert.equal(result.lowIntentConfidence, true);
+});
+
+test('buildIntegritySignals does not flag privileged manager delete roles', () => {
+  const result = buildIntegritySignals({
+    standardOutput: {
+      권한_규칙: [
+        { 역할: '관리자', 삭제: true },
+        { 역할: '매니저', 삭제: true },
+      ],
+    },
+    permissionGuardEnabled: false,
+    hypothesisWhat: '문의 상태 관리',
+    logicText: '문의 상태 관리',
+    changedAxis: '',
+    l1Intelligence: { overallConfidence: 80 },
+    l2Intelligence: { alignmentScore: 82, overallScore: 79, syncSuggestions: [] },
+  });
+
+  assert.deepEqual(result.deleteRoles, ['관리자', '매니저']);
+  assert.deepEqual(result.riskyDeleteRoles, []);
+  assert.equal(result.hasPermissionConflict, false);
+  assert.equal(result.permission, 'pass');
 });
 
 test('buildWarnings creates prioritized warning graph from integrity signals', () => {
@@ -149,7 +172,8 @@ test('buildWarnings creates prioritized warning graph from integrity signals', (
       lowIntentConfidence: true,
       dataFlow: 'fail',
       hasPermissionConflict: true,
-      deleteRoles: ['운영자'],
+      deleteRoles: ['상담원'],
+      riskyDeleteRoles: ['상담원'],
       hasIntentMismatch: true,
     },
   });
@@ -172,4 +196,9 @@ test('buildWarnings creates prioritized warning graph from integrity signals', (
   const permissionWarning = warnings.find((warning) => warning.id === 'permission-delete');
   assert.equal(permissionWarning?.severity, 'critical');
   assert.equal(permissionWarning?.gateImpact, 'hard');
+  assert.equal(permissionWarning?.title, '권한 범위 재확인');
+
+  const flowWarning = warnings.find((warning) => warning.id === 'data-flow-alignment');
+  assert.equal(flowWarning?.title, '기능 흐름 점검 필요');
+  assert.match(flowWarning?.detail || '', /흐름 점수 50/);
 });

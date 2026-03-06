@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ActionPriorityLegend, PriorityActionList } from '../PriorityActionList';
 import { GATE_STATUS_META, WARNING_DOMAIN_LABEL } from './constants';
 import {
@@ -89,8 +89,8 @@ export function L1HypothesisEditor({
 
   return (
     <section>
-      <h3>L1 의도 추출기</h3>
-      <p>AI 가설을 수정/확정 중심으로 다듬고, 신뢰도 낮은 항목부터 질문으로 보완합니다.</p>
+      <h3>요구 확정</h3>
+      <p>핵심 요구를 확정하고, 신뢰도 낮은 항목부터 바로 보완합니다.</p>
       <p className="small-muted">
         추론 신뢰도: <strong>{l1Intelligence.overallConfidence}</strong>/100 ({l1Intelligence.confidenceBand})
       </p>
@@ -104,7 +104,7 @@ export function L1HypothesisEditor({
       {l1FocusGuide?.active && (
         <div className={`attention-banner urgency-${l1FocusGuide.urgency}`}>
           <div className="attention-banner-head">
-            <strong>L4 이동 수정 안내</strong>
+            <strong>핵심 경고 기반 수정 안내</strong>
             <div className="attention-banner-actions">
               <UrgencyChip
                 urgency={l1FocusGuide.urgency}
@@ -239,8 +239,8 @@ export function L2LogicMapper({
 
   return (
     <section>
-      <h3>L2 로직 매퍼</h3>
-      <p>한 축을 수정하면 다른 축 영향도를 함께 안내하고, 연동 반영으로 동기화합니다.</p>
+      <h3>변경 영향 동기화</h3>
+      <p>Text, DB, API, UI 중 한 축을 고치면 나머지 영향 범위를 함께 정리합니다.</p>
       <p className="small-muted">
         합성 점수: <strong>{l2Intelligence.overallScore}</strong>/100
         {' | '}
@@ -294,11 +294,11 @@ export function L3ContextOptimizer({
 
   return (
     <section>
-      <h3>L3 컨텍스트 최적화</h3>
-      <p>AI 코딩용 실행 프롬프트를 우선 확인하고, 필요할 때만 다른 수신자용 포맷을 펼쳐봅니다.</p>
+      <h3>바로 쓰는 결과</h3>
+      <p>사람이나 AI에 바로 넘길 수 있는 텍스트를 한곳에 모았습니다.</p>
 
       <div>
-        <strong>AI 코딩용 (실행 프롬프트)</strong>
+        <strong>AI에 넣을 프롬프트</strong>
         <pre className="mono-block">
           {contextOutputs.aiCoding || '-'}
         </pre>
@@ -330,8 +330,8 @@ export function L3ContextOptimizer({
         ) : null
       ))}
 
-      <button type="button" className="btn btn-primary" onClick={onExportContext}>AI 코딩 프롬프트 복사</button>
-      <p className="small-muted">{exportStatus || '아직 내보내기 전'}</p>
+      <button type="button" className="btn btn-primary" onClick={onExportContext}>AI용 프롬프트 복사</button>
+      <p className="small-muted">{exportStatus || '아직 복사 전'}</p>
     </section>
   );
 }
@@ -344,6 +344,7 @@ export function L4IntegritySimulator({
   warningSummary,
   compactMode = false,
   canSyncToManualLoop = false,
+  allowActions = true,
   onWarningAction,
   onApplyAutoFixes,
 }) {
@@ -354,7 +355,7 @@ export function L4IntegritySimulator({
 
   return (
     <section>
-      <h3>L4 무결성 시뮬레이터</h3>
+      <h3>핵심 경고와 무결성</h3>
       <p>
         상태: <strong>{gateMeta.label}</strong>
         {' | '}
@@ -398,7 +399,7 @@ export function L4IntegritySimulator({
           )}
         </>
       )}
-      {topWarnings.length === 0 && <p>충돌 없음. L5로 진행 가능합니다.</p>}
+      {topWarnings.length === 0 && <p>즉시 차단 경고가 없습니다. 실행 준비로 넘어가도 됩니다.</p>}
       {topWarnings.map((warning) => (
         <article key={warning.id} className="warning-card">
           <strong className="warning-title">{warning.title}</strong>
@@ -406,27 +407,29 @@ export function L4IntegritySimulator({
             {warning.severity.toUpperCase()} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | score {warning.score}
           </p>
           <p>{warning.detail}</p>
-          <div className="stack-actions">
-            {canSyncToManualLoop && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => onWarningAction(warning.id, 'send-to-clarify')}
-              >
-                수동 루프로 보내기
-              </button>
-            )}
-            {warning.actions.map((action) => (
-              <button
-                key={`${warning.id}-${action.id}`}
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => onWarningAction(warning.id, action.id)}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
+          {allowActions && (
+            <div className="stack-actions">
+              {canSyncToManualLoop && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => onWarningAction(warning.id, 'send-to-clarify')}
+                >
+                  수동 루프로 보내기
+                </button>
+              )}
+              {warning.actions.map((action) => (
+                <button
+                  key={`${warning.id}-${action.id}`}
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => onWarningAction(warning.id, action.id)}
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          )}
         </article>
       ))}
       {!compactMode && remainingWarnings.length > 0 && (
@@ -441,9 +444,11 @@ export function L4IntegritySimulator({
           </ul>
         </details>
       )}
-      <button type="button" className="btn btn-primary" onClick={onApplyAutoFixes} disabled={topWarnings.length === 0}>
-        자동 보정 제안 적용
-      </button>
+      {allowActions && (
+        <button type="button" className="btn btn-primary" onClick={onApplyAutoFixes} disabled={topWarnings.length === 0}>
+          자동 보정 제안 적용
+        </button>
+      )}
     </section>
   );
 }
@@ -463,6 +468,7 @@ export function L5ActionBinder({
   clarifyApplyNotice = '',
   isProcessing = false,
   canSyncToManualLoop = false,
+  allowExecutionActions = true,
   onChangeActionPackPreset,
   onCreateActionPack,
   onExportActionPack,
@@ -478,11 +484,11 @@ export function L5ActionBinder({
 
   return (
     <section>
-      <h3>L5 실행 바인더</h3>
-      <p>L4 게이트 상태를 통과해야 실행 팩을 생성할 수 있습니다.</p>
+      <h3>실행 준비</h3>
+      <p>남은 경고를 확인한 뒤 복사해 쓸 결과를 정리합니다.</p>
       <div className="form-group">
         <label htmlFor="l5-action-pack-preset" className="small-muted">
-          내보내기 프리셋
+          출력 형식
         </label>
         <select
           id="l5-action-pack-preset"
@@ -502,7 +508,7 @@ export function L5ActionBinder({
         maxItems={3}
         emptyItemText="오늘 할 일이 아직 생성되지 않았습니다."
       />
-      {canSyncToManualLoop && (
+      {allowExecutionActions && canSyncToManualLoop && (
         <div className="form-group">
           <strong>수동 루프</strong>
           <div className="signal-pills">
@@ -584,25 +590,27 @@ export function L5ActionBinder({
         </div>
       )}
       <ActionPriorityLegend />
-      <div className="stack-actions">
-        {canSyncToManualLoop && (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={onSyncToManualLoop}
-            disabled={typeof onSyncToManualLoop !== 'function'}
-          >
-            질문 동기화
+      {allowExecutionActions && (
+        <div className="stack-actions">
+          {canSyncToManualLoop && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={onSyncToManualLoop}
+              disabled={typeof onSyncToManualLoop !== 'function'}
+            >
+              질문 동기화
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
+            실행용 묶음 만들기
           </button>
-        )}
-        <button type="button" className="btn btn-primary" onClick={onCreateActionPack} disabled={gateStatus === 'blocked'}>
-          실행 팩 생성
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={onExportActionPack} disabled={!actionPack}>
-          실행 팩 복사
-        </button>
-      </div>
-      {gateStatus === 'blocked' && <p className="small-muted">L4 상태가 blocked라서 실행 CTA가 비활성화되었습니다.</p>}
+          <button type="button" className="btn btn-secondary" onClick={onExportActionPack} disabled={!actionPack}>
+            실행용 묶음 복사
+          </button>
+        </div>
+      )}
+      {gateStatus === 'blocked' && <p className="small-muted">차단 경고가 남아 있어 복사 및 전달이 비활성화되었습니다.</p>}
       {gateStatus === 'review' && <p className="small-muted">경고가 남아 있어 review 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
       {actionPackExportStatus && <p className="small-muted">{actionPackExportStatus}</p>}
       {actionPack && (
@@ -663,3 +671,10 @@ export function CtaHistoryPanel({
     </section>
   );
 }
+
+
+
+
+
+
+

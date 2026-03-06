@@ -1,4 +1,4 @@
-import {
+﻿import {
   isObject,
   toObjectArray,
   toStringArray,
@@ -52,6 +52,56 @@ function buildCopyReadyAiCodingPrompt(prompt) {
     .trim();
 }
 
+function buildPreferredStackPrompt(preferredStack) {
+  if (!isObject(preferredStack)) return '';
+
+  const stackName = toText(preferredStack.name);
+  if (!stackName) return '';
+
+  const segments = stackName
+    .split('+')
+    .map((segment) => toText(segment))
+    .filter(Boolean);
+  const languageHints = Array.from(new Set(
+    segments
+      .map((segment) => {
+        const matched = segment.match(/\(([^)]+)\)/);
+        return matched ? toText(matched[1]) : '';
+      })
+      .filter(Boolean),
+  ));
+  const techHints = Array.from(new Set(
+    segments
+      .map((segment) => toText(segment.replace(/\(([^)]+)\)/g, '').replace(/\s{2,}/g, ' ')))
+      .filter(Boolean),
+  ));
+
+  const lines = [
+    '[Implementation Stack Preference]',
+    `- Preferred stack: ${stackName}`,
+  ];
+
+  if (languageHints.length > 0) {
+    lines.push(`- Preferred language: ${languageHints.join(', ')}`);
+  }
+
+  if (techHints.length > 0) {
+    lines.push(`- Preferred technologies: ${techHints.join(', ')}`);
+  }
+
+  lines.push('- Unless the requirements explicitly conflict, implement using this stack and keep the code, dependencies, and examples aligned to it.');
+
+  return lines.join('\n');
+}
+
+export function buildPreferredStackRequestLine(preferredStack) {
+  if (!isObject(preferredStack)) return '';
+
+  const stackName = toText(preferredStack.name);
+  if (!stackName) return '';
+
+  return `구현은 ${stackName} 기준으로 진행하고, 해당 언어와 기술스택을 우선 사용해 주세요.`;
+}
 export function buildProblemFrame(spec) {
   const frame = isObject(spec?.문제정의_5칸) ? spec.문제정의_5칸 : {};
   return {
@@ -99,6 +149,7 @@ export function buildContextOutputs({
   masterPrompt,
   hypothesis,
   logicMap,
+  preferredStack,
 }) {
   const fallbackDev = [
     '# Developer Context',
@@ -146,10 +197,14 @@ export function buildContextOutputs({
     logicMap.ui || '-',
   ].join('\n');
 
+  const stackPrompt = buildPreferredStackPrompt(preferredStack);
+  const baseAiCoding = buildCopyReadyAiCodingPrompt(masterPrompt) || fallbackAiCoding;
+  const aiCoding = stackPrompt ? `${stackPrompt}\n\n${baseAiCoding}` : baseAiCoding;
+
   return {
     dev: toText(devSpec) || fallbackDev,
     nondev: toText(nondevSpec) || fallbackNondev,
-    aiCoding: buildCopyReadyAiCodingPrompt(masterPrompt) || fallbackAiCoding,
+    aiCoding,
   };
 }
 
@@ -232,3 +287,4 @@ export function buildActionPack({
     toText(safeContext.aiCoding) || '-',
   ].join('\n');
 }
+

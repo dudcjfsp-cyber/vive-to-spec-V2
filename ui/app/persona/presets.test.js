@@ -1,4 +1,4 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PERSONA_PRESETS,
@@ -17,9 +17,9 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(beginner?.advancedWorkspaceVariant, 'beginner');
   assert.equal(beginner?.promptPolicyMode, 'beginner_zero_shot');
   assert.equal(beginner?.supportsStrictFormat, false);
-  assert.equal(beginner?.capabilities.showPromptPolicyMeta, true);
+  assert.equal(beginner?.capabilities.showPromptPolicyMeta, false);
   assert.equal(beginner?.capabilities.showAdvancedPromptPolicyMeta, false);
-  assert.equal(beginner?.capabilities.allowBeginnerAdvancedToggle, true);
+  assert.equal(beginner?.capabilities.allowBeginnerAdvancedToggle, false);
   assert.equal(beginner?.capabilities.loopMode, 'off');
   assert.equal(beginner?.capabilities.maxClarifyTurns, 0);
   assert.equal(beginner?.capabilities.showLoopControls, false);
@@ -36,8 +36,11 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(major?.workspaceKind, 'advanced');
   assert.equal(major?.advancedWorkspaceVariant, 'major');
   assert.equal(major?.promptPolicyMode, 'baseline');
-  assert.equal(major?.capabilities.showPromptPolicyMeta, true);
-  assert.equal(major?.capabilities.showAdvancedPromptPolicyMeta, true);
+  assert.equal(major?.capabilities.showPromptPolicyMeta, false);
+  assert.equal(major?.capabilities.showAdvancedPromptPolicyMeta, false);
+  assert.equal(major?.capabilities.showLayerPanels, false);
+  assert.equal(major?.capabilities.showCtaHistory, false);
+  assert.equal(major?.capabilities.showCompactDeliveryPanel, true);
   assert.equal(major?.capabilities.loopMode, 'manual');
   assert.equal(major?.capabilities.maxClarifyTurns, 3);
   assert.equal(major?.capabilities.showLoopControls, true);
@@ -62,8 +65,8 @@ test('resolvePersonaCapabilities returns normalized capability flags', () => {
   const capabilities = resolvePersonaCapabilities('beginner');
   const fallbackCapabilities = resolvePersonaCapabilities('unknown');
 
-  assert.equal(capabilities.showPromptPolicyMeta, true);
-  assert.equal(capabilities.allowBeginnerAdvancedToggle, true);
+  assert.equal(capabilities.showPromptPolicyMeta, false);
+  assert.equal(capabilities.allowBeginnerAdvancedToggle, false);
   assert.equal(capabilities.defaultBeginnerAdvancedOpen, false);
   assert.equal(capabilities.loopMode, 'off');
   assert.equal(capabilities.maxClarifyTurns, 0);
@@ -72,4 +75,6 @@ test('resolvePersonaCapabilities returns normalized capability flags', () => {
   assert.equal(fallbackCapabilities.showLayerPanels, true);
   assert.equal(fallbackCapabilities.showLoopControls, false);
   assert.equal(fallbackCapabilities.showValidationMeta, false);
+  assert.equal(fallbackCapabilities.showCompactDeliveryPanel, false);
 });
+

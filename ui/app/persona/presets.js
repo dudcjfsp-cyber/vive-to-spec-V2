@@ -1,4 +1,4 @@
-const DEFAULT_PERSONA_RUNTIME = Object.freeze({
+﻿const DEFAULT_PERSONA_RUNTIME = Object.freeze({
   id: 'default',
   label: '',
   subtitle: '',
@@ -14,7 +14,7 @@ const DEFAULT_PERSONA_RUNTIME = Object.freeze({
 const DEFAULT_PERSONA_CAPABILITIES = Object.freeze({
   showPromptPolicyMeta: false,
   showAdvancedPromptPolicyMeta: false,
-  allowBeginnerAdvancedToggle: true,
+  allowBeginnerAdvancedToggle: false,
   defaultBeginnerAdvancedOpen: false,
   showLayerPanels: true,
   showCtaHistory: true,
@@ -23,6 +23,7 @@ const DEFAULT_PERSONA_CAPABILITIES = Object.freeze({
   maxClarifyTurns: 0,
   showLoopControls: false,
   showValidationMeta: false,
+  showCompactDeliveryPanel: false,
 });
 
 function toText(value, fallback = '') {
@@ -65,9 +66,9 @@ export const PERSONA_PRESETS = [
     promptPolicyMode: 'beginner_zero_shot',
     supportsStrictFormat: false,
     capabilities: {
-      showPromptPolicyMeta: true,
+      showPromptPolicyMeta: false,
       showAdvancedPromptPolicyMeta: false,
-      allowBeginnerAdvancedToggle: true,
+      allowBeginnerAdvancedToggle: false,
       defaultBeginnerAdvancedOpen: false,
       showLayerPanels: true,
       showCtaHistory: true,
@@ -102,22 +103,23 @@ export const PERSONA_PRESETS = [
   {
     id: 'major',
     label: '개발관련 전공자',
-    subtitle: '레이어/진단/상태를 전체 노출',
+    subtitle: '핵심 경고와 영향 범위를 빠르게 판단',
     tone: 'full-control',
     workspaceKind: 'advanced',
     advancedWorkspaceVariant: 'major',
     promptPolicyMode: 'baseline',
     supportsStrictFormat: true,
     capabilities: {
-      showPromptPolicyMeta: true,
-      showAdvancedPromptPolicyMeta: true,
+      showPromptPolicyMeta: false,
+      showAdvancedPromptPolicyMeta: false,
       showIntegrityWarningsExpanded: true,
-      showLayerPanels: true,
-      showCtaHistory: true,
+      showLayerPanels: false,
+      showCtaHistory: false,
       loopMode: 'manual',
       maxClarifyTurns: 3,
       showLoopControls: true,
-      showValidationMeta: true,
+      showValidationMeta: false,
+      showCompactDeliveryPanel: true,
     },
   },
 ].map((preset) => withPersonaRuntimeDefaults(preset));
@@ -143,3 +145,4 @@ export function resolvePersonaRuntimeConfig(personaOrId) {
 export function resolvePersonaCapabilities(personaOrId) {
   return resolvePersonaRuntimeConfig(personaOrId).capabilities;
 }
+

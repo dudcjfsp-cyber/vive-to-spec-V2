@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  buildContextOutputs,
+  buildLogicMap,
+  buildPreferredStackRequestLine,
+  buildProblemFrame,
+} from './result-panel/builders';
 import { PriorityActionList } from './PriorityActionList';
 import ControlPanel from './ControlPanel';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
@@ -21,7 +27,20 @@ function renderSharedDiagnosticsLayout({
   actions,
   personaCapabilities,
   showApiSettings,
+  selectedImplementationStack,
+  onSelectImplementationStack,
 }) {
+  const diagnosticsCapabilities = {
+    ...(personaCapabilities && typeof personaCapabilities === 'object' ? personaCapabilities : {}),
+    showCompactDeliveryPanel: false,
+    showLayerL1Panel: false,
+    showLayerL2Panel: false,
+    showLayerOutputPanel: false,
+    showCtaHistory: false,
+    allowIntegrityActions: false,
+    allowExecutionActions: false,
+  };
+
   return (
     <div className="layout-grid">
       <div className="layout-left">
@@ -60,7 +79,9 @@ function renderSharedDiagnosticsLayout({
           promptPolicyMeta={derived.promptPolicyMeta}
           validationReport={derived.validationReport}
           clarifyApplyNotice={derived.clarifyApplyNotice}
-          personaCapabilities={personaCapabilities}
+          selectedImplementationStack={selectedImplementationStack}
+          onSelectImplementationStack={onSelectImplementationStack}
+          personaCapabilities={diagnosticsCapabilities}
           onRefreshHybrid={actions.handleRefreshHybrid}
         />
       </div>
@@ -78,6 +99,8 @@ export default function ExperiencedWorkspace({
   showApiSettings = true,
 }) {
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [selectedImplementationStack, setSelectedImplementationStack] = useState(null);
+  const [promptCopyStatus, setPromptCopyStatus] = useState('');
 
   useEffect(() => {
     setIsDiagnosticsOpen(!compactMode);
@@ -93,9 +116,47 @@ export default function ExperiencedWorkspace({
   );
   const quickRequest = useMemo(() => {
     const standardRequest = toText(derived.standardOutput?.수정요청_변환?.표준_요청);
-    if (standardRequest) return standardRequest;
-    return toText(derived.standardOutput?.수정요청_변환?.짧은_요청, derived.masterPrompt);
-  }, [derived.masterPrompt, derived.standardOutput]);
+    const baseRequest = standardRequest || toText(derived.standardOutput?.수정요청_변환?.짧은_요청, derived.masterPrompt);
+    const stackRequestLine = buildPreferredStackRequestLine(selectedImplementationStack);
+
+    if (stackRequestLine && baseRequest) {
+      return `${stackRequestLine}
+${baseRequest}`;
+    }
+
+    return stackRequestLine || baseRequest;
+  }, [derived.masterPrompt, derived.standardOutput, selectedImplementationStack]);  const quickAiPrompt = useMemo(() => {
+    const safeSpec = derived.standardOutput && typeof derived.standardOutput === 'object' ? derived.standardOutput : {};
+    const hypothesis = buildProblemFrame(safeSpec);
+    const logicMap = buildLogicMap(safeSpec, hypothesis);
+    return buildContextOutputs({
+      devSpec: derived.devSpec,
+      nondevSpec: derived.nondevSpec,
+      masterPrompt: derived.masterPrompt,
+      hypothesis,
+      logicMap,
+      preferredStack: selectedImplementationStack,
+    }).aiCoding;
+  }, [derived.devSpec, derived.masterPrompt, derived.nondevSpec, derived.standardOutput, selectedImplementationStack]);
+
+  const handleCopyExperiencedPrompt = useCallback(async () => {
+    if (!quickAiPrompt) {
+      setPromptCopyStatus('복사할 AI 프롬프트가 아직 없습니다.');
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      setPromptCopyStatus('클립보드를 지원하지 않는 환경입니다.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(quickAiPrompt);
+      setPromptCopyStatus('AI 프롬프트를 복사했습니다.');
+    } catch {
+      setPromptCopyStatus('AI 프롬프트 복사에 실패했습니다.');
+    }
+  }, [quickAiPrompt]);
   const completionScore = Number.isFinite(Number(derived.standardOutput?.완성도_진단?.점수_0_100))
     ? Number(derived.standardOutput?.완성도_진단?.점수_0_100)
     : null;
@@ -115,6 +176,8 @@ export default function ExperiencedWorkspace({
           actions,
           personaCapabilities,
           showApiSettings,
+          selectedImplementationStack,
+          onSelectImplementationStack: setSelectedImplementationStack,
         })}
       </section>
     );
@@ -129,9 +192,9 @@ export default function ExperiencedWorkspace({
             <p>핵심 경고와 실행 우선순위를 먼저 보고, 필요한 진단만 확장해서 정리합니다.</p>
           </div>
           <div className="signal-pills">
-            <span className="pill">compact L4: ON</span>
+            <span className="pill">task workbench: ON</span>
             <span className="pill">prompt meta: summary only</span>
-            <span className="pill">flow: input -&gt; summary -&gt; diagnostics</span>
+            <span className="pill">flow: input -&gt; issues -&gt; output</span>
           </div>
         </section>
       )}
@@ -227,7 +290,7 @@ export default function ExperiencedWorkspace({
         <section className="panel experienced-summary-panel">
           <div className="panel-head">
             <h2>Execution Snapshot</h2>
-            <p>상위 경고, 즉시 실행 항목, 전달용 요청문만 먼저 확인합니다.</p>
+            <p>상위 경고, 즉시 실행 항목, 전달용 요청문과 AI 프롬프트를 먼저 확인합니다.</p>
           </div>
 
           {state.status === 'idle' && (
@@ -273,9 +336,34 @@ export default function ExperiencedWorkspace({
 
               <section className="experienced-summary-card">
                 <h3>전달용 요청문</h3>
+                {selectedImplementationStack && (
+                  <div className="signal-pills compact-delivery-meta">
+                    <span className="pill">선택 스택: {selectedImplementationStack.name}</span>
+                  </div>
+                )}
                 <pre className="mono-block experienced-quick-request">
                   {quickRequest || '전달용 요청문이 아직 없습니다.'}
                 </pre>
+              </section>
+
+              <section className="experienced-summary-card">
+                <div className="compact-delivery-head">
+                  <div>
+                    <h3>AI에 넣을 프롬프트</h3>
+                  </div>
+                  <button type="button" className="btn btn-secondary" onClick={handleCopyExperiencedPrompt}>
+                    프롬프트 복사
+                  </button>
+                </div>
+                {selectedImplementationStack && (
+                  <div className="signal-pills compact-delivery-meta">
+                    <span className="pill">선택 스택: {selectedImplementationStack.name}</span>
+                  </div>
+                )}
+                <pre className="mono-block compact-delivery-block">
+                  {quickAiPrompt || 'AI에 넣을 프롬프트가 아직 없습니다.'}
+                </pre>
+                <p className="small-muted compact-delivery-status">{promptCopyStatus || '아직 복사 전'}</p>
               </section>
 
               <section className="experienced-summary-card">
@@ -284,6 +372,8 @@ export default function ExperiencedWorkspace({
                   status={state.hybridStackGuideStatus}
                   compact
                   title="추천 구현 스택"
+                  selectedStackId={selectedImplementationStack?.id || ''}
+                  onSelectStack={setSelectedImplementationStack}
                 />
               </section>
 
@@ -355,9 +445,22 @@ export default function ExperiencedWorkspace({
             actions,
             personaCapabilities,
             showApiSettings,
+            selectedImplementationStack,
+            onSelectImplementationStack: setSelectedImplementationStack,
           })}
         </section>
       )}
     </section>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
