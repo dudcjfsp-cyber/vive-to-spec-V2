@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+﻿import { createServer } from 'node:http';
 import {
   fetchAvailableModels,
   recommendHybridStacks,
@@ -6,8 +6,8 @@ import {
   transmuteVibeToSpec,
 } from '../engine/graph/transmuteEngine.js';
 
-const HOST = process.env.MANAGED_API_HOST || '127.0.0.1';
-const PORT = Number(process.env.MANAGED_API_PORT || 8787);
+const HOST = process.env.MANAGED_API_HOST || '0.0.0.0';
+const PORT = Number(process.env.PORT || process.env.MANAGED_API_PORT || 8787);
 const ALLOWED_ORIGIN = process.env.MANAGED_API_ALLOWED_ORIGIN || '*';
 const API_PREFIX = normalizePath(process.env.MANAGED_API_PREFIX || '/api');
 const BODY_LIMIT_BYTES = 1_000_000;
@@ -49,7 +49,9 @@ function getProviderApiKey(provider) {
 }
 
 function getCorsHeaders() {
+  const varyHeader = ALLOWED_ORIGIN === '*' ? {} : { Vary: 'Origin' };
   return {
+    ...varyHeader,
     'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
@@ -109,6 +111,10 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, {
         ok: true,
         mode: 'managed',
+        host: HOST,
+        port: PORT,
+        api_prefix: API_PREFIX,
+        allowed_origin: ALLOWED_ORIGIN,
         providers: SUPPORTED_MODEL_PROVIDERS,
       });
       return;
@@ -185,3 +191,5 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`[managed-api] listening at http://${HOST}:${PORT}${API_PREFIX}`);
 });
+
+

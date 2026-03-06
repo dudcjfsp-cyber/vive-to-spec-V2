@@ -1,4 +1,4 @@
-# Vibe-to-Spec V2
+﻿# Vibe-to-Spec V2
 Repository: https://github.com/dudcjfsp-cyber/vive-to-spec-V2
 Status: Bootstrap (Core migration prep)
 Version: 0.1.0-alpha
@@ -80,9 +80,14 @@ Build check:
 npm run build
 ```
 
+Managed deployment prep:
+- Render blueprint: `render.yaml`
+- Deployment runbook: `docs/managed-deploy.md`
+
 ## App 분리 원칙
 - `ui/app/App.jsx`: 화면 조립만 담당
 - `ui/app/hooks/useAppController.js`: 상태/유즈케이스 오케스트레이션
 - `ui/app/services/sessionStore.js`: 스토리지/TTL 정책
 - `ui/app/services/specStateShadow.js`: SpecState 기록 경계
+
 
