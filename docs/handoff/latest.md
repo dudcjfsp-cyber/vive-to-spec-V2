@@ -1,99 +1,102 @@
 # Session Handoff (Latest)
 
-- Updated: 2026-03-04
+- Updated: 2026-03-09
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
-- Scope: prompt hardening policy + manual loop UX stabilization
+- Scope: engine refactor pause decision, product/persona validation handoff
 
 ## Current Status
 
-- Week 1: done
-- Week 2: done
-- Week 3: done
-- Week 4: in progress
-- Week 5: in progress
+- Phase 1: contract/IR foundation in place
+- Phase 2: thin pipeline extraction is complete enough for the current transition stage
+- Phase 3: normalization / analysis boundary is stabilized
+- Phase 4: generation / execution boundary extraction is complete enough to pause by default
+- Recommended next lane: product validation, persona-fit validation, and UI cleanup
 
-## Confirmed Baseline
+## What Changed Most Recently
 
-1. Experienced guided loop v1 is connected.
-2. Major manual loop console is connected.
-3. `strict_format -> semantic_repair` fallback chain is connected.
-4. Beginner quick-run prompt now uses the L3 `aiCoding` source path.
+### 1. The last justified engine extraction is now complete
 
-## What Changed In This Session
+- `engine/validation/semanticRepairIssues.js` owns semantic repair issue collection.
+- `engine/execution/executeStructuredGeneration.js` owns reusable structured-generation retry orchestration.
+- `engine/graph/transmuteEngine.js` still exposes `executePromptRepairChain`, but it is now a thin wrapper around the extracted execution helper.
 
-### 1. Shared core checklist introduced
+This means the main reusable handoff now looks like:
+- prompt attempt execution
+- semantic handoff collection
+- `strict_format` retry
+- `semantic_repair` retry
 
-- Added `shared/corePromptChecklist.js`.
-- Defined one shared checklist for code-writing prompts:
-  - input contract
-  - role and permission boundaries
-  - failure handling and fallback
-  - output contract
-  - acceptance criteria and verification
+### 2. The refactor-stop checklist now points to pause, not another extraction
 
-### 2. Prompt policy now force-injects the checklist
+Current stop-condition reasoning:
+- a future renderer would mainly swap prompt builder, draft normalizer, and renderer
+- structured generation / retry / semantic issue detection are already reusable without spec-only normalization code
+- `transmuteEngine.js` is thinner, but the remaining responsibilities are now the wider-blast-radius ones
+- the next likely engine step would improve neatness more than reuse
+- real product work is no longer blocked by the current engine structure
 
-- `engine/graph/promptPolicy.js` now injects a dedicated `core_checklist` section for non-baseline policies.
-- Prompt metadata now records:
-  - `core_checklist_delivery`
-  - `core_checklist_ids`
-- Boundary is explicit:
-  - `baseline`: no extra force-injected checklist section
-  - non-baseline (`beginner_zero_shot`, `strict_format`, `semantic_repair`): checklist is force-injected
+Conclusion:
+- pause engine refactoring here by default
+- only reopen if product validation reveals a concrete blocker
 
-### 3. `buildMasterPrompt` now carries the same checklist
+## Product Audit Summary From This Thread
 
-- `engine/graph/transmuteEngine.js` now adds a `[Core implementation checklist]` block to the AI coding prompt.
-- The block reuses the shared checklist and appends:
-  - must-feature coverage count
-  - listed test-scenario verification count
+Recent UI/UX and persona audit findings worth carrying forward:
 
-### 4. Beginner prompt is warning-only, never auto-mutated
+1. `experienced` and `major` personas are still too similar in the actual generation path.
+- both currently use `baseline` prompt policy in `ui/app/persona/presets.js`
+- output differences are more presentational than engine-level
 
-- `ui/app/components/beginner-prompt.js` no longer appends hidden requirements into the prompt text.
-- It now returns the original prompt as-is and exposes missing checklist items as warning-only metadata.
-- Added explicit meta:
-  - `promptMutated: false`
-- `deliveryMode: warning_only | none`
-- MSDS-specific supplemental warning remains as a warning-only hint.
+2. Beginner quick-prompt delivery is not yet truly beginner-native.
+- the beginner workspace still centers a warning-wrapped AI coding prompt rather than a distinctly simplified output artifact
 
-### 5. Copy-ready prompt was slimmed and localized
+3. There is at least one cleanup issue left from recent UI work.
+- `ui/app/components/hooks/useExperiencedSummary.js` imports `../result-panel/builders` without an ESM file extension, which broke direct Node loading during audit
 
-- The copy-ready AI coding prompt now keeps only core implementation sections.
-- Duplicate sections such as standard request, impact summary, today-actions, and repeated trailing requirements are excluded from the copied prompt.
-- The final checklist block is now shown in Korean as `[핵심 구현 체크리스트]`.
+4. Some surfaced controls still over-promise relative to visible UX.
+- `showThinking` / `추론 레이어 포함` is sent through the request path, but the app surface does not clearly expose a matching reasoning view
 
-### 6. Major manual loop editing moved into L5
-
-- The separate top-level `Manual Loop Console` panel was removed from major mode.
-- Manual-loop question editing now happens directly inside the L5 action area.
-- Users can review blocking issues, edit clarification answers, remove questions, clear the batch, and regenerate without moving between two panels.
-
-### 7. Warning-to-manual-loop routing is now anchored to the clicked warning
-
-- Sending a warning into manual loop now prioritizes the incoming warning-derived question ahead of older queued questions.
-- `schema-*` warnings no longer fall back to unrelated generic questions when a direct schema question is missing.
-- Schema warnings now generate a warning-specific clarification prompt using the clicked warning detail.
-
-### 8. Manual-loop textarea spacing bug was fixed
-
-- Clarification textareas no longer trim values on every render.
-- Spacebar input now preserves normal word spacing while typing.
+5. Dead config and leftover artifacts still exist.
+- persona runtime flags like `supportsStrictFormat`, `showPromptPolicyMeta`, `allowBeginnerAdvancedToggle`, and `defaultBeginnerAdvancedOpen` appear to be leftover or weakly used
+- `ui/app/components/result-panel/constants.js` still exports `AX_LAYER_TABS`, which looks like a legacy artifact
 
 ## Validation
 
-- `cmd /c npm test` passed (`56` tests)
-- `cmd /c npm run build` passed
+Passing focused engine tests:
 
-## Remaining Boundaries
+```text
+node --test --test-isolation=none engine/execution/executeStructuredGeneration.test.js engine/graph/transmuteEngine.test.js engine/validation/semanticRepairIssues.test.js engine/validation/standardOutputValidation.test.js engine/pipeline/buildSpecTransmuteResult.test.js engine/pipeline/runSpecTransmutePipeline.test.js engine/intent/normalizeSpecDraft.test.js engine/intent/prepareSpecAnalysis.test.js
+```
 
-- Week 4 remains open because the manual loop is now structurally cleaner, but still needs real browser QA and UX polish.
-- Week 5 remains open because fallback telemetry is landed, but broader prompt-policy rollout and tuning are still incomplete.
-- The beginner UI still uses the returned warning metadata indirectly; if we want stronger visibility, the next pass can surface checklist delivery labels directly in the rendered UI.
+Additional audit notes:
+- a direct Node import path issue was observed in `ui/app/components/hooks/useExperiencedSummary.js`
+- `npm run build` could not be fully validated in this environment because it failed with `spawn EPERM`
 
-## Recommended Next Session
+## What Still Remains Inside `transmuteEngine.js`
 
-1. Add visual emphasis for newly inserted manual-loop questions so users can immediately see what changed after clicking `수동 루프로 보내기`.
-2. Decide whether `experienced` should keep `baseline` by default or move to a stricter policy mode behind a flag.
-3. Continue Week 4 and Week 5 stabilization with real browser QA around manual loop flows.
+- prompt construction and prompt-policy wiring
+- single prompt-attempt JSON parse + one-retry repair
+- provider/model selection
+- provider transport and remote execution
+- public facade wiring into the spec pipeline
+
+## Thread Boundary Recommendation
+
+Use a fresh next thread.
+
+Reason:
+- the engine refactor lane reached a clean stopping point
+- the next work should be evaluated against persona fit, educational UX, and product simplicity
+- mixing that work into the current thread would blur the goal and make the handoff less crisp
+
+## Recommended Next Thread
+
+The next thread should focus on product validation and selective cleanup, not deeper engine refactoring.
+
+Suggested objectives:
+1. verify whether recent UI cleanup truly removed unnecessary surface area
+2. verify whether each persona gets appropriately different output and guidance
+3. identify safe dead-config removals
+4. align visible controls with actual user-facing output
+5. only reopen engine refactoring if a concrete blocker emerges from that work

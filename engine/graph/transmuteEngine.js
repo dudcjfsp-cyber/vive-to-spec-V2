@@ -5,6 +5,14 @@ import {
 } from './promptPolicy.js';
 import { getCoreChecklistMasterPromptLines } from '../../shared/corePromptChecklist.js';
 import { validateStandardOutput } from '../validation/standardOutputValidation.js';
+import { buildSpecTransmuteResult } from '../pipeline/buildSpecTransmuteResult.js';
+import { runSpecTransmutePipeline } from '../pipeline/runSpecTransmutePipeline.js';
+import { SPEC_INTENT_FIELD_MAP } from '../contracts/specIntentFieldMap.js';
+import { createSpecRenderer } from '../renderers/spec/specRenderer.js';
+import { prepareSpecAnalysis } from '../intent/prepareSpecAnalysis.js';
+import { normalizeSpecDraft } from '../intent/normalizeSpecDraft.js';
+import { executeStructuredGeneration } from '../execution/executeStructuredGeneration.js';
+import { collectSemanticRepairIssues as collectStructuredGenerationIssues } from '../validation/semanticRepairIssues.js';
 
 /**
  * llmCore.js 읽기 가이드(비전공자용)
@@ -100,6 +108,8 @@ const K = {
   OUTPUT: '출력',
   STANDARD_OUTPUT: '표준_출력',
 };
+
+const specRenderer = createSpecRenderer({ schemaKeys: K });
 
 // 모델이 따라야 하는 JSON "형태 계약서"입니다.
 // 이 문자열을 프롬프트에 그대로 넣어 "반드시 이 모양으로 답해"라고 지시합니다.
@@ -1147,164 +1157,33 @@ function extractJsonText(text) {
  */
 function normalizeStandardOutput(raw) {
   const safe = isObject(raw) ? raw : {};
-
-  const problemFrameSource = isObject(safe[K.PROBLEM_FRAME])
-    ? safe[K.PROBLEM_FRAME]
-    : (isObject(safe.problem_frame) ? safe.problem_frame : {});
-  const interviewSource = isObject(safe[K.INTERVIEW])
-    ? safe[K.INTERVIEW]
-    : (isObject(safe.interview_mode) ? safe.interview_mode : {});
-  const featuresSource = isObject(safe[K.FEATURES])
-    ? safe[K.FEATURES]
-    : (isObject(safe.core_features) ? safe.core_features : {});
-  const ambiguitiesSource = isObject(safe[K.AMBIGUITIES])
-    ? safe[K.AMBIGUITIES]
-    : (isObject(safe.ambiguities) ? safe.ambiguities : {});
-  const requestSource = isObject(safe[K.REQUEST_CONVERTER])
-    ? safe[K.REQUEST_CONVERTER]
-    : (isObject(safe.request_converter) ? safe.request_converter : {});
-  const impactSource = isObject(safe[K.IMPACT])
-    ? safe[K.IMPACT]
-    : (isObject(safe.impact_preview) ? safe.impact_preview : {});
-  const completenessSource = isObject(safe[K.COMPLETENESS])
-    ? safe[K.COMPLETENESS]
-    : (isObject(safe.completeness) ? safe.completeness : {});
-
-  const rolesSource = Array.isArray(safe[K.ROLES])
-    ? safe[K.ROLES]
-    : (Array.isArray(safe.users_and_roles) ? safe.users_and_roles : []);
-  const roles = rolesSource
-    .map((item) => {
-      const safeItem = isObject(item) ? item : {};
-      return {
-        [K.ROLE]: toSafeString(safeItem[K.ROLE] ?? safeItem.role),
-        [K.DESCRIPTION]: toSafeString(safeItem[K.DESCRIPTION] ?? safeItem.description),
-      };
-    })
-    .filter((item) => item[K.ROLE] || item[K.DESCRIPTION]);
-
-  const inputFieldsSource = Array.isArray(safe[K.INPUT_FIELDS])
-    ? safe[K.INPUT_FIELDS]
-    : (Array.isArray(safe.input_fields) ? safe.input_fields : []);
-  const inputFields = inputFieldsSource
-    .map((item) => {
-      const safeItem = isObject(item) ? item : {};
-      return {
-        [K.NAME]: toSafeString(safeItem[K.NAME] ?? safeItem.name),
-        [K.TYPE]: toSafeString(safeItem[K.TYPE] ?? safeItem.type),
-        [K.EXAMPLE]: toSafeString(safeItem[K.EXAMPLE] ?? safeItem.example),
-      };
-    })
-    .filter((item) => item[K.NAME] || item[K.TYPE] || item[K.EXAMPLE]);
-
-  const permissionsSource = Array.isArray(safe[K.PERMISSIONS])
-    ? safe[K.PERMISSIONS]
-    : (Array.isArray(safe.permission_matrix) ? safe.permission_matrix : []);
-  const permissions = permissionsSource
-    .map((item) => {
-      const safeItem = isObject(item) ? item : {};
-      return {
-        [K.ROLE]: toSafeString(safeItem[K.ROLE] ?? safeItem.role),
-        [K.READ]: toBoolean(safeItem[K.READ] ?? safeItem.read),
-        [K.CREATE]: toBoolean(safeItem[K.CREATE] ?? safeItem.create),
-        [K.UPDATE]: toBoolean(safeItem[K.UPDATE] ?? safeItem.update),
-        [K.DELETE]: toBoolean(safeItem[K.DELETE] ?? safeItem.delete),
-        [K.NOTES]: toSafeString(safeItem[K.NOTES] ?? safeItem.notes),
-      };
-    })
-    .filter((item) => item[K.ROLE] || item[K.NOTES]);
-
-  const summary = toSafeString(safe[K.SUMMARY] ?? safe.one_line_summary, '요약 정보가 필요합니다.');
-  const problemFrame = {
-    [K.WHO]: toSafeString(problemFrameSource[K.WHO] ?? problemFrameSource.who, '주요 사용자 정의 필요'),
-    [K.WHEN]: toSafeString(problemFrameSource[K.WHEN] ?? problemFrameSource.when, '사용 시점 정의 필요'),
-    [K.WHAT]: toSafeString(problemFrameSource[K.WHAT] ?? problemFrameSource.what, '해결할 작업 정의 필요'),
-    [K.WHY]: toSafeString(problemFrameSource[K.WHY] ?? problemFrameSource.why, '문제 배경 정의 필요'),
-    [K.SUCCESS]: toSafeString(problemFrameSource[K.SUCCESS] ?? problemFrameSource.success_criteria, '성공 기준 정의 필요'),
-  };
-
-  const interviewMode = {
-    [K.FOLLOW_UP]: buildRequiredInterviewQuestions(problemFrame, interviewSource, ambiguitiesSource),
-  };
-
-  const baseSpec = {
-    [K.SUMMARY]: summary,
-    [K.PROBLEM_FRAME]: problemFrame,
-    [K.INTERVIEW]: interviewMode,
-    [K.ROLES]: roles,
-    [K.FEATURES]: {
-      [K.MUST]: toStringArray(featuresSource[K.MUST] ?? featuresSource.must),
-      [K.NICE]: toStringArray(featuresSource[K.NICE] ?? featuresSource.nice_to_have),
-    },
-    [K.FLOW]: toFixedLengthStringArray(safe[K.FLOW] ?? safe.user_flow_steps, 5, '사용자 흐름 단계'),
-    [K.INPUT_FIELDS]: inputFields,
-    [K.PERMISSIONS]: permissions,
-    [K.AMBIGUITIES]: {
-      [K.MISSING]: toStringArray(ambiguitiesSource[K.MISSING] ?? ambiguitiesSource.missing_information),
-      [K.QUESTIONS]: toFixedLengthStringArray(ambiguitiesSource[K.QUESTIONS] ?? ambiguitiesSource.questions, 3, '확인 질문'),
-    },
-    [K.RISKS]: toFixedLengthStringArray(safe[K.RISKS] ?? safe.risks, 3, '리스크'),
-    [K.TESTS]: toFixedLengthStringArray(safe[K.TESTS] ?? safe.test_scenarios, 3, '테스트 시나리오'),
-    [K.NEXT]: toFixedLengthStringArray(safe[K.NEXT] ?? safe.next_steps_today, 3, '오늘 할 일'),
-    [K.REQUEST_CONVERTER]: {
-      [K.RAW_REQUEST]: toSafeString(requestSource[K.RAW_REQUEST] ?? requestSource.original, summary),
-      [K.SHORT_REQUEST]: toSafeString(requestSource[K.SHORT_REQUEST] ?? requestSource.short),
-      [K.STANDARD_REQUEST]: toSafeString(requestSource[K.STANDARD_REQUEST] ?? requestSource.standard),
-      [K.DETAILED_REQUEST]: toSafeString(requestSource[K.DETAILED_REQUEST] ?? requestSource.detailed),
-    },
-    [K.IMPACT]: {
-      [K.IMPACT_SCREENS]: toStringArray(impactSource[K.IMPACT_SCREENS] ?? impactSource.screens),
-      [K.IMPACT_PERMISSIONS]: toStringArray(impactSource[K.IMPACT_PERMISSIONS] ?? impactSource.permissions),
-      [K.IMPACT_TESTS]: toStringArray(impactSource[K.IMPACT_TESTS] ?? impactSource.tests),
-    },
-    [K.LAYER_GUIDE]: normalizeLayerGuide(safe[K.LAYER_GUIDE] ?? safe.layer_guide),
-    [K.COMPLETENESS]: {
-      [K.SCORE]: 0,
-      [K.WARNINGS]: [],
-    },
-  };
-
-  const requestFallback = buildFallbackRequests(
-    baseSpec[K.SUMMARY],
-    baseSpec[K.FEATURES][K.MUST],
-    baseSpec[K.TESTS],
-  );
-  if (!baseSpec[K.REQUEST_CONVERTER][K.SHORT_REQUEST]) {
-    baseSpec[K.REQUEST_CONVERTER][K.SHORT_REQUEST] = requestFallback[K.SHORT_REQUEST];
-  }
-  if (!baseSpec[K.REQUEST_CONVERTER][K.STANDARD_REQUEST]) {
-    baseSpec[K.REQUEST_CONVERTER][K.STANDARD_REQUEST] = requestFallback[K.STANDARD_REQUEST];
-  }
-  if (!baseSpec[K.REQUEST_CONVERTER][K.DETAILED_REQUEST]) {
-    baseSpec[K.REQUEST_CONVERTER][K.DETAILED_REQUEST] = requestFallback[K.DETAILED_REQUEST];
-  }
-
-  if (baseSpec[K.IMPACT][K.IMPACT_SCREENS].length === 0) {
-    baseSpec[K.IMPACT][K.IMPACT_SCREENS] = baseSpec[K.FLOW].map((step) => `${step} 화면 영향 가능`);
-  }
-  if (baseSpec[K.IMPACT][K.IMPACT_PERMISSIONS].length === 0) {
-    baseSpec[K.IMPACT][K.IMPACT_PERMISSIONS] = baseSpec[K.PERMISSIONS].length
-      ? baseSpec[K.PERMISSIONS].map((rule) => `${rule[K.ROLE]} 권한 검토 필요`)
-      : ['역할별 CRUD 권한 매트릭스 재검토 필요'];
-  }
-  if (baseSpec[K.IMPACT][K.IMPACT_TESTS].length === 0) {
-    baseSpec[K.IMPACT][K.IMPACT_TESTS] = baseSpec[K.TESTS].map((item) => `${item} 검증 케이스 영향`);
-  }
-
-  const providedWarnings = toStringArray(completenessSource[K.WARNINGS] ?? completenessSource.warnings);
-  const providedScore = toIntegerInRange(completenessSource[K.SCORE] ?? completenessSource.score, 0, 100);
-  const validationReport = validateStandardOutput(baseSpec, {
-    warnings: providedWarnings,
-    score: providedScore,
+  const { specDraft, analysisHandoff } = normalizeSpecDraft({
+    schemaKeys: K,
+    raw: safe,
+    normalizeLayerGuide,
   });
 
-  baseSpec[K.COMPLETENESS] = {
+  // normalizeSpecDraft finishes raw provider JSON -> spec draft normalization.
+  // prepareSpecAnalysis begins the post-normalization analysis-preparation stage.
+  const analysisPrep = prepareSpecAnalysis({
+    schemaKeys: K,
+    spec: specDraft,
+    ...analysisHandoff,
+  });
+
+  specDraft[K.INTERVIEW] = analysisPrep.interviewMode;
+  specDraft[K.REQUEST_CONVERTER] = analysisPrep.requestConverter;
+  specDraft[K.IMPACT] = analysisPrep.impact;
+
+  const validationReport = validateStandardOutput(specDraft, analysisPrep.completenessInput);
+
+  specDraft[K.COMPLETENESS] = {
     [K.SCORE]: validationReport.score,
     [K.WARNINGS]: validationReport.warnings,
   };
 
   return {
-    spec: baseSpec,
+    spec: specDraft,
     validationReport,
   };
 }
@@ -1319,102 +1198,42 @@ function normalizeStandardOutput(raw) {
  * 현재 UI가 기대하는 결과 형태로 묶어 반환합니다.
  * (artifacts/layers/glossary + standard_output 동시 제공)
  */
-function normalizeResult(raw, fallbackModel, promptMeta = null) {
-  const safe = isObject(raw) ? raw : {};
-  const { spec, validationReport } = normalizeStandardOutput(safe);
-  const rawThinking = isObject(safe.layers?.L1_thinking)
-    ? safe.layers.L1_thinking
-    : (isObject(safe.L1_thinking) ? safe.L1_thinking : null);
-  const mergedMeta = {
-    ...(isObject(safe.meta) ? safe.meta : {}),
-    ...(isObject(promptMeta) ? promptMeta : {}),
-  };
-
-  const result = {
-    model: typeof safe.model === 'string' && safe.model.trim() ? safe.model : fallbackModel,
-    standard_output: spec,
-    [K.STANDARD_OUTPUT]: spec,
-    validation_report: validationReport,
-    artifacts: {
-      dev_spec_md: buildDevSpecMarkdown(spec),
-      nondev_spec_md: buildNonDevSpecMarkdown(spec),
-      master_prompt: buildMasterPrompt(spec),
-    },
-    layers: {
-      L1_thinking: buildCompatibilityThinking(spec, rawThinking),
-    },
-    glossary: buildCompatibilityGlossary(spec),
-  };
-
-  if (Object.keys(mergedMeta).length > 0) {
-    result.meta = mergedMeta;
-  }
+// buildSpecTransmuteResult keeps the public result envelope stable.
+// This wrapper only wires normalized data into the existing facade contract.
+function normalizeResult(raw, fallbackModel, promptMeta = null, sourceVibe = '') {
+  const { result } = buildSpecTransmuteResult({
+    raw,
+    fallbackModel,
+    promptMeta,
+    sourceVibe,
+    standardOutputAliasKey: K.STANDARD_OUTPUT,
+    intentFieldMap: SPEC_INTENT_FIELD_MAP,
+    normalizeStandardOutput,
+    renderer: specRenderer,
+  });
 
   return result;
 }
 
-function getSemanticSource(rawValue, schemaKey, legacyKey) {
-  const safe = isObject(rawValue) ? rawValue : {};
-  if (isObject(safe[schemaKey])) return safe[schemaKey];
-  if (isObject(safe[legacyKey])) return safe[legacyKey];
-  return {};
-}
-
-function hasMeaningfulText(value) {
-  return Boolean(toSafeString(value));
-}
-
-function hasMeaningfulList(value) {
-  if (!Array.isArray(value)) return false;
-  return value.some((item) => {
-    if (typeof item === 'string') return Boolean(toSafeString(item));
-    if (!isObject(item)) return false;
-    return Object.values(item).some((entry) => hasMeaningfulText(entry));
-  });
-}
-
 export function collectSemanticRepairIssues(raw) {
-  const safe = isObject(raw) ? raw : {};
-  const problemFrame = getSemanticSource(safe, K.PROBLEM_FRAME, 'problem_frame');
-  const features = getSemanticSource(safe, K.FEATURES, 'core_features');
-  const requestConverter = getSemanticSource(safe, K.REQUEST_CONVERTER, 'request_converter');
+  return collectStructuredGenerationIssues(raw, { schemaKeys: K });
+}
 
-  const roles = Array.isArray(safe[K.ROLES]) ? safe[K.ROLES] : safe.users_and_roles;
-  const inputFields = Array.isArray(safe[K.INPUT_FIELDS]) ? safe[K.INPUT_FIELDS] : safe.input_fields;
-  const permissions = Array.isArray(safe[K.PERMISSIONS]) ? safe[K.PERMISSIONS] : safe.permission_matrix;
-  const tests = Array.isArray(safe[K.TESTS]) ? safe[K.TESTS] : safe.test_scenarios;
+function collectSemanticRepairHandoff(raw) {
+  const issues = collectSemanticRepairIssues(raw);
+  return {
+    issues,
+    issueCount: issues.length,
+    hasIssues: issues.length > 0,
+  };
+}
 
-  const issues = [];
-
-  if (!hasMeaningfulText(problemFrame[K.WHO] ?? problemFrame.who)) {
-    issues.push('Fill the primary user in problem_frame.who.');
-  }
-  if (!hasMeaningfulText(problemFrame[K.WHAT] ?? problemFrame.what)) {
-    issues.push('Fill the core job-to-be-done in problem_frame.what.');
-  }
-  if (!hasMeaningfulText(problemFrame[K.SUCCESS] ?? problemFrame.success_criteria)) {
-    issues.push('Fill concrete success criteria in problem_frame.success.');
-  }
-  if (!hasMeaningfulList(roles)) {
-    issues.push('Add at least one concrete user role.');
-  }
-  if (!hasMeaningfulList(features[K.MUST] ?? features.must)) {
-    issues.push('Add at least one must-have feature.');
-  }
-  if (!hasMeaningfulList(inputFields)) {
-    issues.push('Add at least one input field with name and type.');
-  }
-  if (!hasMeaningfulList(permissions)) {
-    issues.push('Add at least one permission rule.');
-  }
-  if (!hasMeaningfulList(tests)) {
-    issues.push('Add concrete test scenarios.');
-  }
-  if (!hasMeaningfulText(requestConverter[K.STANDARD_REQUEST] ?? requestConverter.standard)) {
-    issues.push('Fill the standard developer request text.');
-  }
-
-  return issues;
+function createSemanticRepairContext(handoff, previousOutput) {
+  return {
+    mode: 'semantic_repair',
+    issues: handoff.issues,
+    previousOutput,
+  };
 }
 
 function canApplyAdvancedRepairs(promptOptions = {}) {
@@ -1574,45 +1393,13 @@ async function runPromptAttempt(generateText, promptOptions) {
 }
 
 export async function executePromptRepairChain(generateText, promptOptions = {}) {
-  let currentAttempt = await runPromptAttempt(generateText, promptOptions);
-  let repairMode = currentAttempt.parseRepairUsed ? 'json_repair' : 'none';
-  let validationRetryCount = 0;
-  let semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
-  const shouldUseAdvancedRepairs = canApplyAdvancedRepairs(promptOptions);
-
-  if (shouldUseAdvancedRepairs && semanticIssues.length > 0 && promptOptions.policyMode !== 'strict_format') {
-    validationRetryCount += 1;
-    currentAttempt = await runPromptAttempt(generateText, {
-      ...promptOptions,
-      policyMode: 'strict_format',
-    });
-    repairMode = 'strict_format';
-    semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
-  }
-
-  if (shouldUseAdvancedRepairs && semanticIssues.length > 0) {
-    validationRetryCount += 1;
-    currentAttempt = await runPromptAttempt(generateText, {
-      ...promptOptions,
-      policyMode: 'semantic_repair',
-      repairContext: {
-        mode: 'semantic_repair',
-        issues: semanticIssues,
-        previousOutput: currentAttempt.parsed,
-      },
-    });
-    repairMode = 'semantic_repair';
-    semanticIssues = collectSemanticRepairIssues(currentAttempt.parsed);
-  }
-
-  return {
-    parsed: currentAttempt.parsed,
-    promptMeta: currentAttempt.promptMeta,
-    repairMode,
-    fallbackApplied: repairMode !== 'none' || validationRetryCount > 0,
-    validationRetryCount,
-    semanticIssueCount: semanticIssues.length,
-  };
+  return executeStructuredGeneration({
+    runPromptAttempt: (attemptOptions) => runPromptAttempt(generateText, attemptOptions),
+    promptOptions,
+    shouldUseAdvancedRepairs: canApplyAdvancedRepairs(promptOptions),
+    collectSemanticHandoff: collectSemanticRepairHandoff,
+    createSemanticRepairContext,
+  });
 }
 
 async function parseResponseJson(response) {
@@ -1936,17 +1723,15 @@ export async function transmuteVibeToSpec(
   };
 
   try {
-    const repairResult = await executePromptRepairChain(generateText, promptOptions);
-    return {
-      ...normalizeResult(repairResult.parsed, selectedModel, {
-        ...(isObject(repairResult.promptMeta) ? repairResult.promptMeta : {}),
-        repair_mode: repairResult.repairMode,
-        fallback_applied: repairResult.fallbackApplied,
-        validation_retry_count: repairResult.validationRetryCount,
-        semantic_issue_count: repairResult.semanticIssueCount,
-      }),
-      provider: normalizedProvider,
-    };
+    return await runSpecTransmutePipeline({
+      generateText,
+      promptOptions,
+      selectedModel,
+      normalizedProvider,
+      sourceVibe: vibe,
+      executePromptRepairChain,
+      normalizeResult,
+    });
   } catch (error) {
     console.error('Transmutation failed:', error);
     throw new Error('Transmutation interrupted by model or JSON parsing failure.');
