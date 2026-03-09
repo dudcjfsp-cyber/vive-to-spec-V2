@@ -1,4 +1,4 @@
-﻿const DEFAULT_PERSONA_RUNTIME = Object.freeze({
+const DEFAULT_PERSONA_RUNTIME = Object.freeze({
   id: 'default',
   label: '',
   subtitle: '',
@@ -6,16 +6,12 @@
   workspaceKind: 'advanced',
   advancedWorkspaceVariant: 'experienced',
   promptPolicyMode: 'baseline',
-  supportsStrictFormat: false,
   promptExperimentScope: 'default',
   capabilities: null,
 });
 
 const DEFAULT_PERSONA_CAPABILITIES = Object.freeze({
-  showPromptPolicyMeta: false,
   showAdvancedPromptPolicyMeta: false,
-  allowBeginnerAdvancedToggle: false,
-  defaultBeginnerAdvancedOpen: false,
   showLayerPanels: true,
   showCtaHistory: true,
   showIntegrityWarningsExpanded: true,
@@ -64,12 +60,8 @@ export const PERSONA_PRESETS = [
     workspaceKind: 'beginner',
     advancedWorkspaceVariant: 'beginner',
     promptPolicyMode: 'beginner_zero_shot',
-    supportsStrictFormat: false,
     capabilities: {
-      showPromptPolicyMeta: false,
       showAdvancedPromptPolicyMeta: false,
-      allowBeginnerAdvancedToggle: false,
-      defaultBeginnerAdvancedOpen: false,
       showLayerPanels: true,
       showCtaHistory: true,
       showIntegrityWarningsExpanded: true,
@@ -87,9 +79,7 @@ export const PERSONA_PRESETS = [
     workspaceKind: 'advanced',
     advancedWorkspaceVariant: 'experienced',
     promptPolicyMode: 'baseline',
-    supportsStrictFormat: true,
     capabilities: {
-      showPromptPolicyMeta: false,
       showAdvancedPromptPolicyMeta: false,
       showIntegrityWarningsExpanded: false,
       showLayerPanels: true,
@@ -108,9 +98,7 @@ export const PERSONA_PRESETS = [
     workspaceKind: 'advanced',
     advancedWorkspaceVariant: 'major',
     promptPolicyMode: 'baseline',
-    supportsStrictFormat: true,
     capabilities: {
-      showPromptPolicyMeta: false,
       showAdvancedPromptPolicyMeta: false,
       showIntegrityWarningsExpanded: true,
       showLayerPanels: false,
@@ -145,4 +133,3 @@ export function resolvePersonaRuntimeConfig(personaOrId) {
 export function resolvePersonaCapabilities(personaOrId) {
   return resolvePersonaRuntimeConfig(personaOrId).capabilities;
 }
-

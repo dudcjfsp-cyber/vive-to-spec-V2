@@ -266,7 +266,7 @@ It is "does the current product actually deliver the right learning experience a
 Current product-validation concerns already observed in the repo:
 - beginner, experienced, and major personas do not yet differ enough at the actual generation-policy level
 - beginner quick-prompt delivery is still too close to advanced AI-coding output
-- some UI/runtime flags and result-panel leftovers still look like dead configuration rather than intentional product surface
+- some misleading controls and leftover UI/runtime artifacts still survive even after the obvious dead-config cleanup
 - some controls promise more than the visible UI actually explains, especially around reasoning/thinking exposure
 
 These are now better next investments than deeper engine cleanup.
@@ -317,3 +317,4 @@ Use this long-term context for your reasoning:
 
 Please evaluate the current change or architecture with that lens.
 ```
+

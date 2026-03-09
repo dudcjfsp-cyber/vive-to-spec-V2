@@ -154,7 +154,7 @@ The preferred next thread should move to product validation rather than deeper e
 Priorities:
 1. validate persona-specific output fit
 2. tighten beginner educational delivery
-3. remove dead UI/runtime configuration that survived recent cleanup
+3. decide whether `experienced` and `major` need real prompt-policy divergence or a simplified combined advanced lane
 4. verify that reasoning/clarification controls match what the UI actually explains
 5. create a small evaluation set for real user scenarios
 
@@ -198,3 +198,4 @@ At the end, summarize:
 - which cleanup items are safe next moves
 - whether any concrete engine blocker was found
 ```
+

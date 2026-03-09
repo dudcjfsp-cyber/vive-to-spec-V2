@@ -1,11 +1,3 @@
-﻿export const AX_LAYER_TABS = [
-  { id: 'L1', label: 'L1 의도 추출기' },
-  { id: 'L2', label: 'L2 로직 매퍼' },
-  { id: 'L3', label: 'L3 컨텍스트 최적화' },
-  { id: 'L4', label: 'L4 무결성 시뮬레이터' },
-  { id: 'L5', label: 'L5 실행 바인더' },
-];
-
 export const ACTION_PACK_PRESETS = [
   {
     id: 'cursor',
@@ -77,4 +69,3 @@ export const STOPWORDS = new Set([
   '있는', '에서', '으로', '에게', '하기', '위해', '대한', '그리고', '또한', '기능', '화면',
   '사용자', '데이터', '정보', '처리', '단계', '기준', '가설', '정의', '요청', '변경',
 ]);
-
