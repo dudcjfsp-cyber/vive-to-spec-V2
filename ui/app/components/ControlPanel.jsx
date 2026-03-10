@@ -66,7 +66,7 @@ export default function ControlPanel({
           onChange={(event) => onShowThinkingChange(event.target.checked)}
           disabled={status === 'processing'}
         />
-        <label htmlFor="show-thinking">추론 레이어 포함</label>
+        <label htmlFor="show-thinking">사고 정리 레이어 포함</label>
       </div>
 
       {showApiSettings && (
@@ -101,4 +101,3 @@ export default function ControlPanel({
     </section>
   );
 }
-

@@ -160,13 +160,6 @@ export function useAppController({ personaConfig = null } = {}) {
   }, []);
 
   const loadModelOptions = useCallback(async (nextApiKey, nextProvider) => {
-    if (requiresUserApiKey && !nextApiKey) {
-      setModelOptions([]);
-      setSelectedModel('');
-      setIsModelOptionsLoading(false);
-      return;
-    }
-
     setIsModelOptionsLoading(true);
     try {
       const fetchedModels = await fetchAvailableModels(nextApiKey, { provider: nextProvider });

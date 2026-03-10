@@ -1,114 +1,149 @@
-# Session Handoff (Latest)
+﻿# Session Handoff (Latest)
 
-- Updated: 2026-03-09
+- Updated: 2026-03-10
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
-- Scope: product/persona audit, dead-surface cleanup, next-thread handoff
+- Scope: education-first product pass, persona/work-style cleanup, global API/model settings recovery
 
 ## Current Status
 
-- Phase 1: contract/IR foundation in place
-- Phase 2: thin pipeline extraction is complete enough for the current transition stage
-- Phase 3: normalization / analysis boundary is stabilized
-- Phase 4: generation / execution boundary extraction is complete enough to pause by default
-- Recommended next lane: product validation, persona-fit validation, and selective UX cleanup
+- Beginner flow is now in a solid first-complete state for the current product goal.
+- Advanced modes are now framed by work style, not user prestige or assumed background.
+- Global API/provider/model access is restored from the header and settings modal.
+- Engine refactoring remains paused by default.
+- Recommended next lane: product validation and selective simplification, not deeper engine work.
 
-## What Changed Most Recently
+## What Changed In This Thread
 
-### 1. Persona/runtime wiring was audited from preset to engine prompt path
+### 1. Beginner is now aligned with the education-first product direction
 
-Verified path:
+Beginner now keeps fast success, but teaches structure instead of behaving like a black-box prompt generator.
+
+What is now true:
+- the user can still start from one sentence and get a fast first draft
+- the UI now shows a pre-submit input nudge before generation when a key thinking slot is missing
+- after generation, the user sees a `프롬프트 구조 요약` card before the execution prompt
+- the result now highlights:
+  - what the AI thinks the goal is
+  - who/when the output is for
+  - key constraints
+  - success criteria
+- warnings were softened into learning-oriented coaching hints
+- the user can apply a one-line suggested improvement back into the input field
+- the UI now also shows one positive learning signal (`잘한 점`) and a one-step coaching note (`한 번에 하나만 고치기`)
+
+Main files:
+- `ui/app/components/BeginnerWorkspace.jsx`
+- `ui/app/components/beginner-input-nudge.js`
+- `ui/app/components/beginner-structure.js`
+
+### 2. Advanced personas were redefined around work style
+
+The product no longer presents these as "experienced person" vs "major/CS person".
+
+Current meaning:
+- `experienced` = `빠른 실행형`
+  - get a result quickly
+  - look at only top warnings first
+  - clarify once only if needed
+- `major` = `검토 통제형`
+  - review blocking issues first
+  - inspect contract/impact before finalizing
+  - decide with more visible judgment support
+
+This is a better fit for the actual product intent because the distinction is now about working style and control level, not assumed identity or academic background.
+
+Main files:
 - `ui/app/persona/presets.js`
+- `ui/app/components/PersonaSelector.jsx`
+- `ui/app/App.jsx`
+
+### 3. The two advanced workspaces now feel more visibly different
+
+`빠른 실행형` now emphasizes:
+- today-first execution
+- top warnings only
+- compact summary and delayed deep inspection
+
+`검토 통제형` now emphasizes:
+- review order first
+- blocking issues / contract / impact before output finalization
+- visible review framing before detailed results
+
+Main files:
+- `ui/app/components/ExperiencedWorkspace.jsx`
+- `ui/app/components/MajorWorkspace.jsx`
+- `ui/app/components/WorkspaceStatusCard.jsx`
+
+### 4. API/provider/model access is now globally available again
+
+The previous regression was not provider removal.
+The real problem was that the beginner-side UI no longer exposed provider changes clearly, which made the app feel Gemini-fixed.
+
+What is now true:
+- provider support is still `gemini`, `openai`, `anthropic`
+- the settings modal now exposes both provider and model selection
+- the header now exposes clickable `API:` and `모델:` chips so the user can change settings from any session
+- the app now shows provider fallback models even before a user key is saved
+
+Important constraint:
+- pre-execution model fallback still exists
+- automatic runtime retry across different models after quota/failure is intentionally not added in this thread
+- the reason is product clarity: provider account limits, quota state, and modality constraints are still better handled as explicit user decisions
+
+Main files:
+- `ui/app/components/ApiKeyModal.jsx`
 - `ui/app/hooks/useAppController.js`
-- `engine/graph/promptPolicy.js`
-- `engine/graph/transmuteEngine.js`
-- persona-specific workspace components under `ui/app/components/*`
-
-Confirmed behavior:
-- `beginner` is genuinely different at generation time because it uses `beginner_zero_shot`
-- `experienced` and `major` still share the same `baseline` prompt policy
-- `experienced` and `major` differ mainly in UI density, visible summaries, and clarification workflow shape
-
-### 2. Dead product surface was removed, but the cleanup is still only partial
-
-Removed:
-- dead persona runtime flags:
-  - `supportsStrictFormat`
-  - `showPromptPolicyMeta`
-  - `allowBeginnerAdvancedToggle`
-  - `defaultBeginnerAdvancedOpen`
-- leftover result-panel artifact:
-  - `AX_LAYER_TABS` in `ui/app/components/result-panel/constants.js`
-
-Conclusion:
-- the cleanup was useful, but it did not finish the broader persona/product-fit lane
-- the remaining problems are now mostly misleading controls and persona-output mismatch, not dead flags
-
-## Product Audit Summary From This Thread
-
-1. `experienced` and `major` personas are still too similar in the actual generation path.
-- both still use `baseline` prompt policy in `ui/app/persona/presets.js`
-- both still enter the same baseline prompt envelope in `engine/graph/transmuteEngine.js`
-- output differences are still more presentational than engine-level
-
-2. Beginner quick-prompt delivery is not yet truly beginner-native.
-- the beginner workspace still centers a warning-wrapped AI coding prompt derived from the shared master-prompt/context-output path
-- current warning logic detects the mismatch, but does not actually simplify the artifact
-
-3. Some surfaced controls still over-promise relative to visible UX.
-- `showThinking` / `추론 레이어 포함` is still sent through the request path
-- the product surface does not yet explain a clear user-facing reasoning view that matches the wording
-
-4. One direct Node-loading hygiene issue still remains outside the cleanup done here.
-- `ui/app/components/hooks/useExperiencedSummary.js` still imports `../result-panel/builders` without an ESM file extension
-
-5. Dead config cleanup is now only partially remaining.
-- the obvious dead persona flags and `AX_LAYER_TABS` were removed in this thread
-- remaining cleanup should focus on misleading or low-value surfaced controls, not the already-removed dead flags
+- `ui/app/App.jsx`
 
 ## Validation
 
-Passing focused engine tests from the previous engine thread:
+Current-thread verification passed:
 
 ```text
-node --test --test-isolation=none engine/execution/executeStructuredGeneration.test.js engine/graph/transmuteEngine.test.js engine/validation/semanticRepairIssues.test.js engine/validation/standardOutputValidation.test.js engine/pipeline/buildSpecTransmuteResult.test.js engine/pipeline/runSpecTransmutePipeline.test.js engine/intent/normalizeSpecDraft.test.js engine/intent/prepareSpecAnalysis.test.js
+cmd /c npm test
+cmd /c npm run build
 ```
 
-Current-thread verification:
+Result:
+- test suite passed (`81` tests)
+- production build passed
 
-```text
-node --input-type=module -e "..."
-```
+## Product Judgment After This Thread
 
-Additional audit notes:
-- direct module verification succeeded for the cleaned persona/runtime files
-- `node --test` could not be fully validated in this environment because it failed with `spawn EPERM`
-- `npm run build` was not re-run in this thread
+### Beginner
+Beginner is now good enough to treat as a completed first-phase learning flow.
 
-## What Still Remains Inside `transmuteEngine.js`
+That does not mean it is finished forever.
+It means the current product goal is met well enough to stop adding beginner surface by default and move into observation/validation mode.
 
-- prompt construction and prompt-policy wiring
-- single prompt-attempt JSON parse + one-retry repair
-- provider/model selection
-- provider transport and remote execution
-- public facade wiring into the spec pipeline
+### Advanced modes
+The advanced lane is now clearer, but still needs product validation.
+
+The next question is no longer "can we keep rewriting the structure?"
+It is:
+- are these two modes truly useful and intuitive to real users?
+- is there still duplicated or misleading surface left in the advanced UI?
+- do we still expose controls that feel more technical than educationally useful?
 
 ## Thread Boundary Recommendation
 
 Use a fresh next thread.
 
 Reason:
-- the engine refactor lane is still paused for good reasons
-- the current remaining work is product/persona fit, not structural engine extraction
-- the next thread should be judged by user-visible product clarity, not refactor neatness
+- this thread already completed one coherent product pass
+- beginner, advanced work-style framing, and API/model access were all resolved together here
+- the next step should evaluate the product as it now exists, not continue stacking features into the same thread
+- success criteria for the next step are product-validation criteria, not implementation-completion criteria
 
 ## Recommended Next Thread
 
-The next thread should stay in product validation and selective cleanup, not deeper engine refactoring.
+Stay in product validation and selective cleanup.
+Do not reopen engine refactoring by default.
 
 Suggested objectives:
-1. decide whether `experienced` and `major` should diverge at prompt-policy level or collapse toward one advanced lane
-2. make beginner quick output genuinely beginner-native instead of warning-only around the shared AI-coding prompt
-3. align `showThinking` wording with actual visible UX, or hide/de-scope it
-4. clean up remaining low-value runtime/UI leftovers such as the ESM import-path hygiene issue
-5. only reopen engine refactoring if a concrete blocker emerges from that work
+1. Audit whether the current UI is actually simpler and more learnable after the recent changes.
+2. Identify any remaining misleading, duplicated, or low-value controls/surfaces.
+3. Verify whether `입문자`, `빠른 실행형`, and `검토 통제형` now feel meaningfully different to a real user.
+4. Make only small, validated fixes that improve clarity without changing the public result envelope or UI/server/adapter contracts.
+5. Only reopen engine work if a concrete product blocker appears.

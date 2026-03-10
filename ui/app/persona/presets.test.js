@@ -16,6 +16,7 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(beginner?.workspaceKind, 'beginner');
   assert.equal(beginner?.advancedWorkspaceVariant, 'beginner');
   assert.equal(beginner?.promptPolicyMode, 'beginner_zero_shot');
+  assert.match(beginner?.selectionHint || '', /구조/);
   assert.equal(beginner?.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(beginner?.capabilities.loopMode, 'off');
   assert.equal(beginner?.capabilities.maxClarifyTurns, 0);
@@ -23,6 +24,7 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(experienced?.workspaceKind, 'advanced');
   assert.equal(experienced?.advancedWorkspaceVariant, 'experienced');
   assert.equal(experienced?.promptPolicyMode, 'baseline');
+  assert.match(experienced?.selectionHint || '', /상위 경고/);
   assert.equal(experienced?.capabilities.showLayerPanels, true);
   assert.equal(experienced?.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(experienced?.capabilities.showIntegrityWarningsExpanded, false);
@@ -32,6 +34,7 @@ test('persona presets expose runtime config in one place', () => {
   assert.equal(major?.workspaceKind, 'advanced');
   assert.equal(major?.advancedWorkspaceVariant, 'major');
   assert.equal(major?.promptPolicyMode, 'baseline');
+  assert.match(major?.selectionHint || '', /계약/);
   assert.equal(major?.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(major?.capabilities.showLayerPanels, false);
   assert.equal(major?.capabilities.showCtaHistory, false);
@@ -48,6 +51,7 @@ test('resolvePersonaRuntimeConfig falls back to a safe default', () => {
   assert.equal(fallback.workspaceKind, 'advanced');
   assert.equal(fallback.advancedWorkspaceVariant, 'experienced');
   assert.equal(fallback.promptPolicyMode, 'baseline');
+  assert.equal(fallback.selectionHint, '');
   assert.equal(fallback.capabilities.showLayerPanels, true);
   assert.equal(fallback.capabilities.showAdvancedPromptPolicyMeta, false);
   assert.equal(fallback.capabilities.loopMode, 'off');

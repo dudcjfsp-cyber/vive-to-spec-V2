@@ -1,10 +1,10 @@
-﻿import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   buildContextOutputs,
   buildLogicMap,
   buildPreferredStackRequestLine,
   buildProblemFrame,
-} from '../result-panel/builders';
+} from '../result-panel/builders.js';
 import { isObject, toStringArray, toText } from '../result-panel/utils';
 
 export function useExperiencedSummary({

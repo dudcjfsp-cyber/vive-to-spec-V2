@@ -1,9 +1,9 @@
-# Next Thread Instructions
+﻿# Next Thread Instructions
 
 ## Thread Goal
-Validate the current product surface now that the engine refactor lane has reached a natural pause point.
+Validate the current product surface after the education-first UX pass, and make only the smallest high-value cleanup that improves clarity.
 
-This next thread is not a default engine-refactor thread.
+This next thread is not an engine-refactor thread.
 The default assumption should be:
 - keep the current engine structure unless product validation reveals a concrete blocker
 
@@ -15,84 +15,88 @@ The default assumption should be:
 - `docs/handoff/next-engine-thread.md`
 
 ## Why This Thread Exists
-The engine has already reached the smallest safe reusable boundary for this refactor lane.
+The product has now reached a cleaner checkpoint:
+- beginner has a fast-success plus structure-learning flow
+- advanced modes are framed by work style, not status labels
+- global API/provider/model access has been restored
+- tests and build are passing
 
-What is now true:
-- `engine/validation/semanticRepairIssues.js` owns semantic repair issue collection
-- `engine/execution/executeStructuredGeneration.js` owns structured-generation retry orchestration
-- `executePromptRepairChain` is now a thin facade wrapper
-- public result shape and UI/server/adapter contracts remain unchanged
+That means the next highest-value question is no longer structural refactoring.
+It is product judgment.
 
-That means the main unanswered questions are now product questions:
-- did the recent UI/UX cleanup actually remove unnecessary complexity?
-- do beginner / experienced / major personas receive appropriately different outputs and guidance?
-- are there misleading controls or leftover stage artifacts still in the product?
+What needs validation now:
+- does the current UI actually feel simpler?
+- do the three modes feel genuinely different in practice?
+- are there still misleading, duplicated, or low-value controls left in the product surface?
+- is there any concrete reason to reopen engine work, or is the next problem still mostly UX/product-fit?
 
 ## Current State Summary
-- `Vibe-to-Spec V2` is the first renderer/product on top of a reusable intent engine
-- the long-term asset is still the engine, but the current next risk is product fit rather than engine structure
-- the current engine should stay stable unless product validation exposes a specific reuse or coupling problem
-
-Known product audit signals to verify:
-- `experienced` and `major` still appear too similar at the prompt-policy level
-- beginner quick-prompt delivery is still too close to the shared AI-coding/master-prompt path
-- the obvious dead persona/runtime flags and `AX_LAYER_TABS` cleanup are already done
-- some visible controls, especially around reasoning/thinking, still promise more than the UI actually teaches
-- `ui/app/components/hooks/useExperiencedSummary.js` still has a direct Node-loading hygiene issue from a missing ESM extension
+- `Vibe-to-Spec V2` is an education-first product for non-developers, vibe coders, and AI beginners.
+- The long-term asset is still a reusable intent engine.
+- Beginner should preserve fast success while revealing structure.
+- Advanced modes are now work-style based:
+  - `빠른 실행형`: execute quickly, inspect only top warnings first, clarify once only if needed
+  - `검토 통제형`: review blocking issues, contract, and impact before finalizing output
+- API/provider/model settings are now globally accessible from the header and settings modal.
+- Model handling currently supports:
+  - live model fetch
+  - provider fallback defaults
+  - preference-based selection fallback
+- Automatic model switching after runtime failure is intentionally out of scope unless a strong product reason appears.
 
 ## Main Objective For This Thread
-Produce a product-validation report first, then make only the safest fixes if they are clearly justified.
+Produce a product-validation report first, then make only small fixes that are directly justified by that report.
 
 The report should answer:
-1. Did the recent UI cleanup really remove unnecessary surface area?
-2. Is each persona's output and guidance appropriate for its intended user?
-3. Which remaining controls/configuration are misleading, redundant, or still low-value after the dead-config cleanup?
-4. Is there any concrete engine blocker that prevents the next product improvements?
+1. Is the current UI actually simpler after the recent changes?
+2. Does each mode now feel appropriate for its intended working style?
+3. Which surfaces are still misleading, duplicated, noisy, or low-value?
+4. Is there any concrete engine blocker preventing the next product improvement?
 
 ## Preferred Direction
 - validate before redesigning
-- prefer removing misleading or dead product surface over adding new complexity
-- prefer persona-fit improvements that are visible to users
+- prefer removing or simplifying product surface over adding new features
+- prefer fixes that strengthen learning clarity
 - keep engine changes out of scope unless they directly unblock a validated product problem
 
 ## Scope
 Allowed:
 - `ui/*`
 - light-touch engine reads for validation reasoning
-- tests or focused fixes directly tied to the report
+- tests or focused fixes directly tied to validated findings
+- handoff/doc updates if the conclusions become clear
 
 Avoid by default:
 - deeper engine refactor
-- renderer redesign
+- public result envelope changes
+- UI/server/adapter contract changes
 - provider transport redesign
-- changing UI/server/adapter contracts
-- changing the public result envelope
+- automatic model failover work
 
 ## Important Constraints
 - Do not change UI/server/adapter contracts.
 - Do not change the public result envelope.
-- Do not restart engine refactoring unless there is a concrete blocker.
-- Prefer validation, simplification, and product-fit cleanup over structural rewrites.
-- Keep the thread scoped to one product-validation responsibility at a time.
+- Do not reopen engine refactoring unless a concrete blocker is found.
+- Prefer simplification, validation, and selective cleanup over feature growth.
+- Keep the thread focused on product judgment and the smallest justified fixes.
 
 ## Suggested Work Order
-1. Re-read the latest handoff and verify the current persona/runtime wiring in code.
-2. Audit whether recent cleanup removed or merely hid old product surface.
-3. Compare beginner / experienced / major outputs and controls against intended user needs.
-4. Identify what is still misleading or leftover after the dead-config cleanup that already landed.
-5. If making fixes, keep them small and directly tied to validated findings.
-6. End by judging whether any engine blocker was actually discovered.
+1. Re-read the latest handoff and check the current persona/runtime wiring in code.
+2. Audit the real user surface for all three modes.
+3. Identify remaining misleading, duplicated, or low-value controls.
+4. Make only small fixes that directly improve clarity.
+5. End by judging whether another product thread is enough, or whether any separate engine thread is truly needed.
 
 ## Validation
-- Prefer focused tests or direct code-path verification over broad rewrites.
-- If build validation is attempted, record any environment limits separately from product findings.
+- Prefer focused tests and direct UI/code-path verification.
+- If build validation is run, keep environment notes separate from product conclusions.
 
 ## End-Of-Thread Summary
 At the end, summarize:
-- whether the current UI/product surface is actually simpler
-- whether persona outputs are appropriately different at both UI and prompt-policy level
-- which cleanup items are safe next moves
-- whether any engine change is truly needed next
+- what is now clearly working
+- what is still confusing or duplicated
+- what the next smallest high-value improvement is
+- whether a separate engine thread is actually needed
 
 ## Suggested Prompt For The Next Thread
 ```text
@@ -103,42 +107,31 @@ Before making changes, read these files first:
 - docs/handoff/latest.md
 - docs/handoff/next-engine-thread.md
 
-Project intent:
-- The real long-term asset is a reusable intent engine for future products like Vibe-to-Prompt, Vibe-to-Architecture, and Vibe Studio.
-- `Vibe-to-Spec V2` is the first product/renderer on top of that engine.
-- Keep the current UI/server/adapter contract and public result envelope unchanged.
+Current project direction:
+- This is an education-first product for non-developers, vibe coders, and AI beginners.
+- Beginner should preserve fast success while teaching structure.
+- Advanced modes are work-style based:
+  - 빠른 실행형 = execute quickly, check only top warnings, clarify once if needed
+  - 검토 통제형 = review blocking issues, contract, and impact before finalizing
+- API/provider/model settings are now globally accessible from the header and settings modal.
+- Model handling currently supports live fetch + provider fallback defaults + preference-based selection.
+- Do not add automatic model-switch-on-failure logic unless a very strong product reason appears.
 
-Current state:
-- `engine/renderers/spec/specRenderer.js` is the spec renderer.
-- `engine/pipeline/buildSpecTransmuteResult.js` and `engine/pipeline/runSpecTransmutePipeline.js` preserve the public result envelope.
-- `engine/graph/transmuteEngine.js` is still the public facade.
-- `engine/intent/normalizeSpecDraft.js` owns raw provider JSON -> spec draft normalization.
-- `engine/intent/prepareSpecAnalysis.js` owns normalized-spec-afterward analysis preparation.
-- `engine/validation/semanticRepairIssues.js` owns semantic repair issue collection.
-- `engine/execution/executeStructuredGeneration.js` owns structured-generation retry orchestration.
-- Engine structural refactoring is paused by default.
-
-Known current findings:
-- `experienced` and `major` are still too similar at prompt-policy level.
-- beginner quick delivery is still too close to the shared AI-coding/master-prompt path.
-- the obvious dead persona/runtime flags and `AX_LAYER_TABS` cleanup are already done.
-- `showThinking` may still over-promise relative to visible UX.
-
-Your task for this thread:
-- audit whether the recent UI/UX cleanup actually removed unnecessary surface area
-- verify whether beginner / experienced / major personas receive appropriately different outputs and guidance
-- identify remaining misleading controls and leftover stage artifacts
-- only make focused fixes if they directly match validated findings
+Your task in this thread:
+1. Audit whether the current UI is actually simpler and more learnable after the recent changes.
+2. Identify any remaining misleading, duplicated, or low-value controls/surfaces.
+3. Check whether beginner, 빠른 실행형, and 검토 통제형 now feel meaningfully different to a real user.
+4. Make only small, validated fixes that improve clarity without changing the public result envelope or UI/server/adapter contracts.
 
 Important constraints:
-- Do not change UI/server/adapter contracts.
+- Do not reopen engine refactoring by default.
 - Do not change the public result envelope.
-- Do not reopen engine refactoring unless you find a concrete blocker.
-- Prefer simplification and product validation over redesign.
+- Prefer removing or simplifying product surface over adding more features.
+- Treat this as a product-validation and selective cleanup thread, not a redesign thread.
 
 At the end, summarize:
-- whether the cleanup is complete enough or still partial
-- where persona output is still mismatched
-- what the safest next fixes are
-- whether a new engine thread is actually needed
+- what is now clearly working
+- what is still confusing or duplicated
+- what should be the next smallest high-value improvement
+- whether a separate engine thread is actually needed
 ```

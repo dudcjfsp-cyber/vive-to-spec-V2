@@ -1,24 +1,43 @@
-# Long-Term Context
+﻿# Long-Term Context
 
 ## Why This Document Exists
-This document captures the long-term intent behind the project so new AI threads do not need the same background explanation every time.
+This document captures the stable long-term intent behind the project so new AI threads do not need the same background explanation every time.
 
-Use this as the stable product context for planning, implementation, review, and refactoring decisions.
+Use this as the default product context for planning, implementation, review, and refactoring decisions.
 
 ## Project Identity
-`Vibe-to-Spec V2` is an education-first product for non-developers, non-CS learners, and AI beginners.
+`Vibe-to-Spec V2` is an education-first product for:
+- non-developers
+- non-CS learners
+- vibe coders
+- AI beginners
 
-The project helps users move from:
-- natural language input
-- to intent understanding
-- to structured, implementation-ready output
+The product is not meant to reward "just type anything and let the model do everything" habits.
+It should still provide fast success, but it should also teach users how structured requests are formed and why they work.
 
 The creator is also part of the target audience:
 - non-CS background
 - non-developer background
 - practical vibe-coding experience
 
-That means the product should not assume expert mental models by default. It should teach, guide, and reveal structure without overwhelming the user.
+That means the product should not assume expert mental models by default.
+It should teach, guide, and reveal structure without overwhelming the user.
+
+## Product Philosophy
+The educational goal is not to block convenience.
+It is to prevent black-box dependence.
+
+So the product should aim for this balance:
+- let beginners get a working result quickly
+- show the structure behind that result
+- help the user improve one thinking slot at a time
+- avoid teaching that vague prompting is always enough
+
+A good outcome is:
+- fast first success
+- visible structure
+- small guided improvement
+- repeated learning through use
 
 ## Long-Term Product Roadmap
 This repository is one step in a larger product family.
@@ -103,7 +122,7 @@ In other words:
 
 ## Current Mission Of Vibe-to-Spec V2
 At this stage, `Vibe-to-Spec V2` should focus on one thing:
-- being the best spec-oriented renderer built on top of the evolving engine
+- being the best education-first spec-oriented renderer built on top of the evolving engine
 
 That means the current project should optimize for:
 - clearer intent capture
@@ -111,12 +130,31 @@ That means the current project should optimize for:
 - stronger clarification flow
 - more reliable spec normalization
 - better validation of missing or weak fields
-- more educational feedback for non-technical users
+- better educational feedback for non-technical users
+- UI that teaches structure while preserving fast early momentum
 
 It should not over-expand into too many output modes yet.
 
 ## What To Prioritize Right Now
-### 1. Make intent analysis more explicit
+### 1. Preserve the education-first beginner path
+Beginner should keep fast success, but avoid becoming a black-box prompt vending flow.
+
+Prioritize:
+- one-sentence start
+- visible prompt structure
+- one-line guided improvement
+- positive reinforcement for what the user already did well
+- soft learning hints instead of intimidating diagnostics
+
+### 2. Make persona differences reflect working style
+Persona separation should not depend on prestige labels or assumed academic identity.
+
+Prefer:
+- beginner = fast success plus structure learning
+- quick execution mode = get to action quickly, inspect only top warnings first
+- review control mode = inspect blocking issues, contract, and impact before finalizing
+
+### 3. Make intent analysis more explicit
 Intent logic should become a first-class engine concern, not just a side effect of prompt generation or UI warnings.
 
 Prioritize:
@@ -126,15 +164,15 @@ Prioritize:
 - missing-information reasons
 - structured clarification triggers
 
-### 2. Separate engine logic from renderer logic
-Anything that is specific to spec output should be easy to move into a renderer later.
+### 4. Separate engine logic from renderer logic
+Anything specific to spec output should be easy to move into a renderer later.
 
 Prioritize:
 - separating analysis from final markdown or spec artifacts
 - keeping normalization and planning distinct from presentation
 - reducing giant all-in-one engine flows
 
-### 3. Separate generation/execution from interpretation
+### 5. Separate generation/execution from interpretation
 Provider calls, JSON repair, retry strategy, and semantic issue detection should not stay entangled with one renderer's normalization path.
 
 Prioritize:
@@ -143,7 +181,7 @@ Prioritize:
 - validation-oriented semantic issue detection
 - execution metadata that future renderers can share
 
-### 4. Strengthen validation beyond field presence
+### 6. Strengthen validation beyond field presence
 Validation should not only ask "is a field missing?"
 It should also ask:
 - does the output match the original intent?
@@ -151,17 +189,7 @@ It should also ask:
 - what must be clarified before safe execution?
 - what should a beginner learn from this result?
 
-### 5. Preserve educational usability
-This product is not only a converter. It is also a learning aid.
-
-Prioritize:
-- beginner-safe wording
-- step visibility
-- explanation of uncertainty
-- visible reasons for clarification
-- outputs that teach users how structured thinking works
-
-### 6. Keep the engine reusable
+### 7. Keep the engine reusable
 When making design decisions, prefer structures that can later power:
 - spec output
 - prompt output
@@ -169,13 +197,14 @@ When making design decisions, prefer structures that can later power:
 without rewriting the analysis core.
 
 ## What Not To Over-Optimize Yet
-These are useful, but should not outrank engine separation.
+These are useful, but should not outrank engine separation and product clarity.
 
 Do not over-focus on:
 - polishing too many output formats inside this repo right now
 - product-specific UI complexity that deepens coupling
 - renderer-specific hacks inside the engine core
 - persona logic that becomes inseparable from core analysis
+- automatic model failover behavior that hides provider/account constraints from the user
 
 ## Quality Bar For Engine Work
 A change is good if it improves at least one of these without harming reusability:
@@ -200,6 +229,7 @@ When evaluating any feature, refactor, or experiment, ask:
 3. If this logic were needed by `Vibe-to-Architecture`, would the current design block that?
 4. Is this generation logic, analysis logic, planning logic, validation logic, or renderer logic?
 5. Are we making the product more educational for beginners, or only more complex?
+6. Does this help users understand structure, or does it hide the real constraint behind more automation?
 
 ## Suggested Mental Model For This Repo
 Think of the repository like this:
@@ -215,6 +245,7 @@ When working in this repository, assume the following:
 - `Vibe-to-Spec` is only the first renderer/product
 - engine quality matters more than short-term hacks
 - maintainability and future renderer reuse are core requirements
+- the UI should teach structure, not just produce outputs that happen to run
 
 If a proposed change solves a local problem but makes reuse harder for `Vibe-to-Prompt`, `Vibe-to-Architecture`, or `Vibe Studio`, prefer a more modular design.
 
@@ -258,16 +289,18 @@ What should not be forced next by default:
 - provider transport redesign without a product-facing reason
 - moving intent IR earlier before product validation shows that it is necessary
 - mixing renderer redesign with engine execution cleanup
+- automatic model switching after runtime failure when the real issue is often quota/account/provider constraints
 
 ## Product Validation Pressure Points
 The next meaningful risk is no longer "can the engine be split one more time?"
-It is "does the current product actually deliver the right learning experience and persona fit?"
+It is "does the current product actually deliver the right learning experience and work-style fit?"
 
-Current product-validation concerns already observed in the repo:
-- beginner, experienced, and major personas do not yet differ enough at the actual generation-policy level
-- beginner quick-prompt delivery is still too close to advanced AI-coding output
-- some misleading controls and leftover UI/runtime artifacts still survive even after the obvious dead-config cleanup
-- some controls promise more than the visible UI actually explains, especially around reasoning/thinking exposure
+Current product-validation concerns to keep testing:
+- are the three modes now clearly differentiated to real users?
+- is there still duplicated or misleading surface left in advanced UI?
+- are there still controls that promise more than the visible UX really explains?
+- is beginner now simple enough without becoming too shallow?
+- should advanced remain two lanes, or does later validation suggest collapsing them?
 
 These are now better next investments than deeper engine cleanup.
 
@@ -281,14 +314,15 @@ Recommended rule:
 - if the thread is about product validation, allow `ui/*` plus minimal engine touch only when a concrete persona/output problem requires it
 - avoid mixing a large renderer refactor, a large analysis refactor, and a large product-surface cleanup in one thread
 
-At the current point, starting a fresh thread is the safer default before product/persona validation work, because the engine-refactor lane and the next product-validation lane have different goals and success criteria.
+At the current point, starting a fresh thread is the safer default before the next product-validation pass, because the current thread completed one coherent UX pass and the next lane has different goals and success criteria.
 
 ## Short Context Prompt For New Threads
 Use this when starting a new AI thread:
 
 ```text
 Before making changes, use this project context:
-- This repository is Vibe-to-Spec V2, an education-first tool for non-developers, non-CS learners, and AI beginners.
+- This repository is Vibe-to-Spec V2, an education-first tool for non-developers, non-CS learners, vibe coders, and AI beginners.
+- The product should not teach black-box dependence. It should preserve fast success while revealing structure.
 - The long-term goal is not only a spec generator, but a reusable intent engine that will later power Vibe-to-Prompt, Vibe-to-Architecture, and finally Vibe Studio.
 - So please prefer engine-first, reusable, modular designs.
 - Treat spec output as one renderer/product, not as the permanent shape of the core engine.
@@ -310,11 +344,10 @@ Use this long-term context for your reasoning:
 - The future family includes Vibe-to-Prompt, Vibe-to-Architecture, and a unified Vibe Studio.
 - The real long-term asset is a reusable intent analysis engine, not only the current spec output.
 - Therefore, generation, analysis, planning, validation, and rendering should become more separable over time.
-- The target audience is educational: non-developers, non-CS learners, and AI beginners, including the creator.
+- The target audience is educational: non-developers, non-CS learners, vibe coders, and AI beginners, including the creator.
 - Recommendations should optimize for modularity, explainability, educational clarity, and long-term extensibility.
 - Current status: pipeline extraction exists, spec renderer extraction exists, raw-to-spec draft normalization now lives in `engine/intent/normalizeSpecDraft.js`, post-normalization analysis preparation now lives in `engine/intent/prepareSpecAnalysis.js`, semantic repair issue collection lives in `engine/validation/semanticRepairIssues.js`, and structured-generation retry orchestration lives in `engine/execution/executeStructuredGeneration.js`.
 - The current default is to validate persona fit, educational UX, and product output quality before attempting deeper engine cleanup again.
 
 Please evaluate the current change or architecture with that lens.
 ```
-

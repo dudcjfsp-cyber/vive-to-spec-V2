@@ -13,8 +13,8 @@ export default function PersonaSelector({
         <h2>{compact ? '세션 전환' : '시작 모드 선택'}</h2>
         <p>
           {compact
-            ? '현재 작업 상태를 유지한 채 바로 다른 세션으로 전환할 수 있습니다.'
-            : '처음에는 본인 수준에 맞는 화면으로 시작하고, 이후에도 바로 바꿀 수 있습니다.'}
+            ? '현재 작업 상태를 유지한 채 바로 다른 작업 방식으로 비교할 수 있습니다.'
+            : '처음에는 본인에게 맞는 작업 방식으로 시작하고, 이후에도 같은 상태를 유지한 채 바로 바꿀 수 있습니다.'}
         </p>
       </div>
       <div className={`persona-grid${compact ? ' compact' : ''}`}>
@@ -29,6 +29,7 @@ export default function PersonaSelector({
           >
             <strong>{preset.label}</strong>
             <span>{preset.subtitle}</span>
+            {preset.selectionHint && <small className="persona-card-hint">{preset.selectionHint}</small>}
           </button>
         ))}
       </div>

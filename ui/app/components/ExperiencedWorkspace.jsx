@@ -3,6 +3,7 @@ import { PriorityActionList } from './PriorityActionList';
 import ControlPanel from './ControlPanel';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
 import ResultPanel from './ResultPanel';
+import WorkspaceStatusCard from './WorkspaceStatusCard.jsx';
 import { useExperiencedSummary } from './hooks/useExperiencedSummary.js';
 
 function renderSharedDiagnosticsLayout({
@@ -73,6 +74,48 @@ function renderSharedDiagnosticsLayout({
   );
 }
 
+const QUICK_MODE_STEPS = [
+  {
+    title: '1. 바로 실행',
+    body: '오늘 할 일 3개와 전달용 요청문부터 먼저 확인합니다.',
+  },
+  {
+    title: '2. 핵심 경고만',
+    body: '상위 경고 2개만 보고 지금 막히는지만 판단합니다.',
+  },
+  {
+    title: '3. 막히면 한 번 보완',
+    body: '누락 정보가 있을 때만 짧게 답하고 다시 생성합니다.',
+  },
+];
+
+function buildExperiencedStatus(state) {
+  if (state.status === 'processing') {
+    return {
+      tone: 'processing',
+      title: '실행 요약 정리 중',
+      body: '핵심 실행 카드, 상위 경고, 한 번 보완할 질문만 추려서 정리하고 있습니다.',
+      items: ['오늘 할 일 3개 정리', '상위 경고 2개 추리기', '필요할 때만 1회 보완 질문 만들기'],
+    };
+  }
+
+  if (state.status === 'error') {
+    return {
+      tone: 'error',
+      title: '실행 요약 생성 실패',
+      body: `오류: ${state.errorMessage || '알 수 없는 오류'}`,
+      items: ['입력 문장을 조금 더 짧고 명확하게 적기', '프로바이더/모델 설정 확인하기', '다시 요약 생성 시도하기'],
+    };
+  }
+
+  return {
+    tone: 'idle',
+    title: '아직 빠른 실행 요약 전',
+    body: '요구를 입력하고 요약 생성 버튼을 누르면, 오늘 바로 실행할 카드와 핵심 경고만 먼저 정리됩니다.',
+    items: ['오늘 할 일 3개 먼저 보기', '상위 경고 2개만 빠르게 확인하기', '막힐 때만 한 번 보완하기'],
+  };
+}
+
 export default function ExperiencedWorkspace({
   state,
   derived,
@@ -104,6 +147,7 @@ export default function ExperiencedWorkspace({
     derived,
     selectedImplementationStack,
   });
+  const statusCard = buildExperiencedStatus(state);
 
   if (!compactMode) {
     return (
@@ -126,22 +170,25 @@ export default function ExperiencedWorkspace({
       {showModeIntro && (
         <section className="panel persona-brief persona-brief-experienced">
           <div className="panel-head">
-            <h2>Experienced Mode</h2>
-            <p>핵심 경고와 실행 우선순위를 먼저 보고, 필요한 진단만 확장해서 정리합니다.</p>
+            <h2>빠른 실행형 모드</h2>
+            <p>오늘 바로 돌릴 결과와 핵심 경고만 먼저 확인하고, 세부 진단은 필요할 때만 여는 작업 방식입니다.</p>
           </div>
           <div className="signal-pills">
             <span className="pill">task workbench: ON</span>
-            <span className="pill">prompt meta: summary only</span>
-            <span className="pill">flow: input -&gt; issues -&gt; output</span>
+            <span className="pill">top issues only</span>
+            <span className="pill">flow: run -&gt; check -&gt; expand</span>
           </div>
+          <p className="small-muted persona-mode-note">
+            입문자에서 구조가 잡혔다면, 이제는 핵심 경고와 실행 순서만 빠르게 확인하는 단계입니다.
+          </p>
         </section>
       )}
 
       <div className="experienced-compact-grid">
         <section className="panel experienced-control-panel">
           <div className="panel-head">
-            <h2>Fast Transmute</h2>
-            <p>입력과 실행만 빠르게 처리하고, 세부 진단은 필요할 때만 확장합니다.</p>
+            <h2>빠른 정리</h2>
+            <p>입력과 실행을 먼저 끝내고, 세부 검토는 정말 필요할 때만 확장합니다.</p>
           </div>
 
           <div className="control-grid">
@@ -185,8 +232,11 @@ export default function ExperiencedWorkspace({
               onChange={(event) => actions.setShowThinking(event.target.checked)}
               disabled={state.status === 'processing'}
             />
-            <label htmlFor="experienced-show-thinking">추론 레이어 포함</label>
+            <label htmlFor="experienced-show-thinking">사고 정리 레이어 포함</label>
           </div>
+          <p className="small-muted">
+            모델 내부 추론 전체를 여는 기능이 아니라, 결과 해석용 요약 레이어를 함께 보는 옵션입니다.
+          </p>
 
           <div className="form-group">
             <label htmlFor="experienced-vibe">핵심 요구</label>
@@ -227,22 +277,28 @@ export default function ExperiencedWorkspace({
 
         <section className="panel experienced-summary-panel">
           <div className="panel-head">
-            <h2>Execution Snapshot</h2>
-            <p>상위 경고, 즉시 실행 항목, 전달용 요청문과 AI 프롬프트를 먼저 확인합니다.</p>
+            <h2>오늘 바로 끝내기</h2>
+            <p>핵심 실행 카드만 먼저 남기고, 나머지는 필요할 때만 여는 요약 화면입니다.</p>
           </div>
 
-          {state.status === 'idle' && (
-            <p className="experienced-empty-state">
-              아직 요약이 없습니다. 요구를 입력하고 `요약 생성`을 눌러 상위 경고와 실행 항목을 먼저 확인하세요.
-            </p>
-          )}
+          <section className="experienced-focus-strip">
+            <div className="experienced-focus-grid">
+              {QUICK_MODE_STEPS.map((step) => (
+                <article key={step.title} className="experienced-focus-card">
+                  <strong>{step.title}</strong>
+                  <p>{step.body}</p>
+                </article>
+              ))}
+            </div>
+          </section>
 
-          {state.status === 'processing' && (
-            <p className="experienced-empty-state">상위 경고와 실행 스냅샷을 생성하는 중입니다.</p>
-          )}
-
-          {state.status === 'error' && (
-            <p className="beginner-error">오류: {state.errorMessage || '알 수 없는 오류'}</p>
+          {state.status !== 'success' && (
+            <WorkspaceStatusCard
+              tone={statusCard.tone}
+              title={statusCard.title}
+              body={statusCard.body}
+              items={statusCard.items}
+            />
           )}
 
           {state.status === 'success' && (
@@ -254,16 +310,7 @@ export default function ExperiencedWorkspace({
                 {derived.validationReport && <span className="pill">validation: {validationSeverity}</span>}
               </div>
 
-              <section className="experienced-summary-card">
-                <h3>상위 점검 2개</h3>
-                <ul className="experienced-summary-list">
-                  {(topWarnings.length ? topWarnings : ['현재 즉시 차단 경고는 감지되지 않았습니다.'])
-                    .slice(0, 2)
-                    .map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
-                </ul>
-              </section>
-
-              <section className="experienced-summary-card">
+              <section className="experienced-summary-card experienced-priority-card">
                 <h3>바로 실행</h3>
                 <PriorityActionList
                   items={todayActions}
@@ -271,6 +318,52 @@ export default function ExperiencedWorkspace({
                   emptyItemText="즉시 실행 항목이 아직 없습니다."
                 />
               </section>
+
+              <section className="experienced-summary-card experienced-priority-card">
+                <h3>상위 경고 2개</h3>
+                <ul className="experienced-summary-list">
+                  {(topWarnings.length ? topWarnings : ['현재 즉시 차단 경고는 감지되지 않았습니다.'])
+                    .slice(0, 2)
+                    .map((item, idx) => <li key={`${item}-${idx}`}>{item}</li>)}
+                </ul>
+              </section>
+
+              {validationQuestions.length > 0 && (
+                <section className="experienced-summary-card experienced-priority-card">
+                  <h3>막히면 한 번만 보완</h3>
+                  <p className="small-muted">
+                    현재 결과의 누락 항목만 짧게 채우고, 반영 후 다시 직접 생성합니다.
+                  </p>
+                  <div className="stack-actions">
+                    <span className="pill">turn: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
+                    <span className="pill">questions: {validationQuestions.length}</span>
+                  </div>
+                  <div className="form-group">
+                    {validationQuestions.map((question) => (
+                      <div key={question} className="form-group">
+                        <label>{question}</label>
+                        <textarea
+                          rows={2}
+                          value={typeof derived.clarifyLoop?.answers?.[question] === 'string' ? derived.clarifyLoop.answers[question] : ''}
+                          onChange={(event) => actions.setClarifyAnswer(question, event.target.value)}
+                          placeholder="확정된 정보만 짧게 입력하세요."
+                          disabled={state.status === 'processing'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="stack-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={actions.handleApplyClarifications}
+                      disabled={state.status === 'processing' || !canSubmitClarification}
+                    >
+                      입력 매트릭스 반영
+                    </button>
+                  </div>
+                </section>
+              )}
 
               <section className="experienced-summary-card">
                 <h3>전달용 요청문</h3>
@@ -314,43 +407,6 @@ export default function ExperiencedWorkspace({
                   onSelectStack={setSelectedImplementationStack}
                 />
               </section>
-
-              {validationQuestions.length > 0 && (
-                <section className="experienced-summary-card">
-                  <h3>보완점 입력</h3>
-                  <p className="small-muted">
-                    현재 결과의 누락 항목이 감지되었습니다. 필요한 정보만 입력 매트릭스에 반영한 뒤, 생성은 직접 실행하세요.
-                  </p>
-                  <div className="stack-actions">
-                    <span className="pill">turn: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
-                    <span className="pill">questions: {validationQuestions.length}</span>
-                  </div>
-                  <div className="form-group">
-                    {validationQuestions.map((question) => (
-                      <div key={question} className="form-group">
-                        <label>{question}</label>
-                        <textarea
-                          rows={2}
-                          value={typeof derived.clarifyLoop?.answers?.[question] === 'string' ? derived.clarifyLoop.answers[question] : ''}
-                          onChange={(event) => actions.setClarifyAnswer(question, event.target.value)}
-                          placeholder="확정된 정보만 짧게 입력하세요."
-                          disabled={state.status === 'processing'}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="stack-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={actions.handleApplyClarifications}
-                      disabled={state.status === 'processing' || !canSubmitClarification}
-                    >
-                      입력 매트릭스 반영
-                    </button>
-                  </div>
-                </section>
-              )}
             </div>
           )}
 
@@ -360,7 +416,7 @@ export default function ExperiencedWorkspace({
               className="btn btn-secondary"
               onClick={() => setIsDiagnosticsOpen((prev) => !prev)}
             >
-              {isDiagnosticsOpen ? '상세 진단 닫기' : '상세 진단 열기'}
+              {isDiagnosticsOpen ? '세부 진단 닫기' : '세부 진단은 필요할 때만 열기'}
             </button>
             {state.status === 'success' && (
               <button
@@ -391,14 +447,3 @@ export default function ExperiencedWorkspace({
     </section>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

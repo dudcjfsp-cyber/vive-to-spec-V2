@@ -9,6 +9,24 @@ import { PERSONA_PRESETS, resolvePersonaPreset, resolvePersonaRuntimeConfig } fr
 
 const PERSONA_STORAGE_KEY = 'vibe_to_spec_persona';
 
+function getHeaderCopy({ activePersona, isBeginnerWorkspace, requiresApiKey }) {
+  if (activePersona) {
+    if (isBeginnerWorkspace) {
+      return '한 문장 입력으로 실행 가능한 초안을 빠르게 만들고, 필요한 힌트만 짧게 확인합니다.';
+    }
+    if (activePersona.id === 'major') {
+      return '구현 전에 계약, 영향 범위, 차단 이슈를 먼저 검토한 뒤 결과를 확정하는 교육형 워크스페이스.';
+    }
+    return '오늘 바로 실행할 결과를 먼저 만들고, 핵심 경고와 한 번의 보완만 확인하는 교육형 워크스페이스.';
+  }
+
+  if (requiresApiKey) {
+    return '세션을 먼저 고르고, 바로 같은 화면에서 연결과 작업 시작까지 이어집니다.';
+  }
+
+  return '세션을 먼저 고르고 바로 작업을 시작합니다.';
+}
+
 function renderApiKeyGate({
   state,
   derived,
@@ -75,6 +93,8 @@ export default function App() {
   const isBeginnerWorkspace = activePersonaConfig.workspaceKind === 'beginner';
   const advancedWorkspaceVariant = activePersonaConfig.advancedWorkspaceVariant;
   const activePersonaCapabilities = activePersonaConfig.capabilities;
+  const headerCopy = getHeaderCopy({ activePersona, isBeginnerWorkspace, requiresApiKey });
+  const modelStatusLabel = state.selectedModel || (state.isModelOptionsLoading ? 'Loading' : (state.activeModel || 'Unset'));
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -84,7 +104,6 @@ export default function App() {
       window.sessionStorage.removeItem(PERSONA_STORAGE_KEY);
     }
   }, [activePersona]);
-
 
   const handleSelectPersona = (nextPersonaId) => {
     if (state.status === 'processing') return;
@@ -102,23 +121,30 @@ export default function App() {
         <div>
           <p className="eyebrow">학습 스펙 워크스페이스</p>
           <h1>Vibe-to-Spec V2</h1>
-          <p className="header-copy">
-            {activePersona
-              ? (isBeginnerWorkspace
-                ? '한 문장 입력으로 실행 가능한 초안을 빠르게 생성합니다.'
-                : '아이디어를 실행 가능한 스펙으로 단계별 정리하는 교육형 워크스페이스.')
-              : (requiresApiKey
-                ? '세션을 먼저 고르고, 바로 같은 화면에서 API 연결과 작업 시작까지 이어집니다.'
-                : '세션을 먼저 고르고 바로 작업을 시작합니다.')}
-          </p>
+          <p className="header-copy">{headerCopy}</p>
         </div>
         <div className="header-meta">
           <span className="status-chip">
             세션: {activePersona?.label || '선택 전'}
           </span>
-          <span className={`status-chip ${hasApiAccess ? '' : 'muted'}`}>
+          <button
+            type="button"
+            className={`status-chip status-chip-button ${hasApiAccess ? '' : 'muted'}`}
+            onClick={() => actions.setIsSettingsOpen(true)}
+            disabled={state.status === 'processing'}
+            title="Open API settings"
+          >
             API: {apiStatusLabel}
-          </span>
+          </button>
+          <button
+            type="button"
+            className="status-chip status-chip-button muted"
+            onClick={() => actions.setIsSettingsOpen(true)}
+            disabled={state.status === 'processing'}
+            title="Open API settings"
+          >
+            모델: {modelStatusLabel}
+          </button>
           <span className="status-chip muted">상태 복원 활성화</span>
           {activePersona && (
             <button
@@ -152,7 +178,7 @@ export default function App() {
         <section className="panel persona-pending">
           <div className="panel-head">
             <h2>세션을 선택해 계속</h2>
-            <p>위에서 입문자, 경험자, 전공자 중 하나를 고르면 같은 상태를 유지한 채 바로 작업 화면으로 전환됩니다.</p>
+            <p>입문자는 구조 학습, 빠른 실행형은 즉시 실행, 검토 통제형은 계약과 영향 검토에 더 맞습니다.</p>
           </div>
         </section>
       )}
@@ -191,20 +217,22 @@ export default function App() {
         />
       )}
 
-      {requiresApiKey && (
-        <ApiKeyModal
-          isOpen={state.isSettingsOpen}
-          providerLabel={providerLabel}
-          tempKey={state.tempKey}
-          onTempKeyChange={actions.setTempKey}
-          onSave={actions.handleSaveKey}
-          onClose={() => actions.setIsSettingsOpen(false)}
-        />
-      )}
+      <ApiKeyModal
+        isOpen={state.isSettingsOpen}
+        providerLabel={providerLabel}
+        providerOptions={derived.providerOptions}
+        selectedProvider={state.apiProvider}
+        onProviderChange={actions.setApiProvider}
+        modelOptions={state.modelOptions}
+        selectedModel={state.selectedModel}
+        isModelOptionsLoading={state.isModelOptionsLoading}
+        onModelChange={actions.setSelectedModel}
+        showApiKeyInput={requiresApiKey}
+        tempKey={state.tempKey}
+        onTempKeyChange={actions.setTempKey}
+        onSave={actions.handleSaveKey}
+        onClose={() => actions.setIsSettingsOpen(false)}
+      />
     </main>
   );
 }
-
-
-
-
