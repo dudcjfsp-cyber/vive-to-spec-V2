@@ -3,98 +3,87 @@
 - Updated: 2026-03-10
 - Repo: `C:\Users\dudcj\OneDrive\바탕 화면\바이브투스펙V2`
 - Branch: `main`
-- Scope: education-first product pass, persona/work-style cleanup, global API/model settings recovery
+- Scope: product-validation cleanup, advanced-mode clarity, runtime safety for shared diagnostics
 
 ## Current Status
 
-- Beginner flow is now in a solid first-complete state for the current product goal.
-- Advanced modes are now framed by work style, not user prestige or assumed background.
-- Global API/provider/model access is restored from the header and settings modal.
+- Beginner remains a strong fast-success plus structure-learning path.
+- `빠른 실행형` and `검토 통제형` now read more clearly as work-style modes.
+- Global API/provider/model access remains the primary settings path.
+- Shared advanced diagnostics are now safer: they no longer blank the whole screen when a panel fails.
 - Engine refactoring remains paused by default.
-- Recommended next lane: product validation and selective simplification, not deeper engine work.
 
 ## What Changed In This Thread
 
-### 1. Beginner is now aligned with the education-first product direction
+### 1. Product surface was audited and lightly simplified
 
-Beginner now keeps fast success, but teaches structure instead of behaving like a black-box prompt generator.
+Small, validated cleanup was applied without changing the public result envelope or UI/server/adapter contracts.
 
-What is now true:
-- the user can still start from one sentence and get a fast first draft
-- the UI now shows a pre-submit input nudge before generation when a key thinking slot is missing
-- after generation, the user sees a `프롬프트 구조 요약` card before the execution prompt
-- the result now highlights:
-  - what the AI thinks the goal is
-  - who/when the output is for
-  - key constraints
-  - success criteria
-- warnings were softened into learning-oriented coaching hints
-- the user can apply a one-line suggested improvement back into the input field
-- the UI now also shows one positive learning signal (`잘한 점`) and a one-step coaching note (`한 번에 하나만 고치기`)
+What changed:
+- duplicate provider/model selectors were removed from advanced work areas because settings are already global
+- remaining system-ish labels were translated into Korean-first product language
+- low-value labels such as `입력 매트릭스` were replaced with plainer copy
 
 Main files:
-- `ui/app/components/BeginnerWorkspace.jsx`
-- `ui/app/components/beginner-input-nudge.js`
-- `ui/app/components/beginner-structure.js`
-
-### 2. Advanced personas were redefined around work style
-
-The product no longer presents these as "experienced person" vs "major/CS person".
-
-Current meaning:
-- `experienced` = `빠른 실행형`
-  - get a result quickly
-  - look at only top warnings first
-  - clarify once only if needed
-- `major` = `검토 통제형`
-  - review blocking issues first
-  - inspect contract/impact before finalizing
-  - decide with more visible judgment support
-
-This is a better fit for the actual product intent because the distinction is now about working style and control level, not assumed identity or academic background.
-
-Main files:
-- `ui/app/persona/presets.js`
-- `ui/app/components/PersonaSelector.jsx`
+- `ui/app/components/ControlPanel.jsx`
+- `ui/app/components/ExperiencedWorkspace.jsx`
+- `ui/app/components/ResultPanel.jsx`
+- `ui/app/components/result-panel/IssueLoopWorkspace.jsx`
+- `ui/app/components/result-panel/sections/diagnosticSections.jsx`
+- `ui/app/hooks/useAppController.js`
 - `ui/app/App.jsx`
 
-### 3. The two advanced workspaces now feel more visibly different
+### 2. `검토 통제형` now starts safely from idle and reads faster
 
-`빠른 실행형` now emphasizes:
-- today-first execution
-- top warnings only
-- compact summary and delayed deep inspection
+The major/review-control lane no longer waits for a success result before showing the working area.
+At the same time, the review dashboard was compressed so the default view shows only the first things to inspect, with extra detail behind expandable sections.
 
-`검토 통제형` now emphasizes:
-- review order first
-- blocking issues / contract / impact before output finalization
-- visible review framing before detailed results
+Main file:
+- `ui/app/components/MajorWorkspace.jsx`
+
+### 3. `빠른 실행형` and `검토 통제형` share diagnostics more safely
+
+The shared advanced result panel is now mounted only after a successful result exists.
+Before that point, each mode shows a safe status card in the right pane instead of mounting the heavy panel too early.
+
+A dedicated boundary now catches runtime errors inside the shared result panel so the app degrades to an error card instead of a blank screen.
+
+A later cleanup pass also clarified ownership: `AdvancedResultPane.jsx` now owns success gating and shared fail-safe wiring, while `ResultPanel.jsx` is treated as a success-state-only advanced surface.
+
+The same pass added `buildAdvancedResultViewModel.js` so workspace/app-shaped state is normalized into one UI-facing advanced-result contract before `ResultPanel` reads it.
+
+A specific runtime bug caused by a missing `gateStatusLabel` declaration in `ResultPanel.jsx` was also fixed.
+
+Main files:
+- `ui/app/components/AdvancedResultPane.jsx`
+- `ui/app/components/ExperiencedWorkspace.jsx`
+- `ui/app/components/MajorWorkspace.jsx`
+- `ui/app/components/ResultPanel.jsx`
+- `ui/app/components/ResultPanelBoundary.jsx`
+- `ui/app/components/result-panel/buildAdvancedResultViewModel.js`
+
+### 4. Advanced copy is simpler and less technical
+
+Small copy-only compression was applied to advanced surfaces.
+
+Examples:
+- `세부 진단은 필요할 때만 열기` -> `세부 진단 열기`
+- advanced error fallback copy now uses calmer, less technical wording
+- advanced panel descriptions were shortened to reduce reading density
+- `세부 작업판` -> `작업 정리판`
 
 Main files:
 - `ui/app/components/ExperiencedWorkspace.jsx`
-- `ui/app/components/MajorWorkspace.jsx`
-- `ui/app/components/WorkspaceStatusCard.jsx`
+- `ui/app/components/ResultPanel.jsx`
+- `ui/app/components/ResultPanelBoundary.jsx`
 
-### 4. API/provider/model access is now globally available again
+### 5. A mode comparison set now exists for future validation
 
-The previous regression was not provider removal.
-The real problem was that the beginner-side UI no longer exposed provider changes clearly, which made the app feel Gemini-fixed.
+A small evaluation set was added so the three modes can be compared against the same inputs.
+This should guide the next thread, not force a redesign.
 
-What is now true:
-- provider support is still `gemini`, `openai`, `anthropic`
-- the settings modal now exposes both provider and model selection
-- the header now exposes clickable `API:` and `모델:` chips so the user can change settings from any session
-- the app now shows provider fallback models even before a user key is saved
-
-Important constraint:
-- pre-execution model fallback still exists
-- automatic runtime retry across different models after quota/failure is intentionally not added in this thread
-- the reason is product clarity: provider account limits, quota state, and modality constraints are still better handled as explicit user decisions
-
-Main files:
-- `ui/app/components/ApiKeyModal.jsx`
-- `ui/app/hooks/useAppController.js`
-- `ui/app/App.jsx`
+Main file:
+- `docs/mode-comparison-scenarios.md`
 
 ## Validation
 
@@ -106,44 +95,45 @@ cmd /c npm run build
 ```
 
 Result:
-- test suite passed (`81` tests)
+- test suite passed (`91` tests)
 - production build passed
 
 ## Product Judgment After This Thread
 
-### Beginner
-Beginner is now good enough to treat as a completed first-phase learning flow.
+### What is now clearly working
+- Beginner still preserves fast success while teaching structure.
+- `빠른 실행형` now feels execution-first.
+- `검토 통제형` now feels review-first.
+- Shared advanced diagnostics can be reused across modes without blank-screen failure.
+- Global settings and local work surfaces now compete less.
 
-That does not mean it is finished forever.
-It means the current product goal is met well enough to stop adding beginner surface by default and move into observation/validation mode.
+### What is still a little confusing or dense
+- The advanced result area is safer and clearer, but still fairly information-dense.
+- `빠른 실행형` detailed diagnostics and `검토 통제형` intentionally share a similar underlying panel, so their visual difference is not yet maximal.
+- Some advanced helper text can still be shortened further once more real usage is observed.
 
-### Advanced modes
-The advanced lane is now clearer, but still needs product validation.
+### Next smallest high-value improvement
+The next best move is still another small product thread, not an engine thread.
 
-The next question is no longer "can we keep rewriting the structure?"
-It is:
-- are these two modes truly useful and intuitive to real users?
-- is there still duplicated or misleading surface left in the advanced UI?
-- do we still expose controls that feel more technical than educationally useful?
+Good continuation candidates:
+1. lightly improve the comparison-scenario doc intro and usage notes
+2. compress the default exposure order inside `빠른 실행형` detailed diagnostics a little more
+3. trim one more sentence from each `검토 통제형` dashboard card if it still feels dense in use
+
+These are good continuation options, not must-do requirements.
+
+### Is a separate engine thread needed?
+No concrete engine blocker was found.
+The issues uncovered in this thread were product-surface, copy, and runtime-safety problems, and all were handled without reopening engine refactoring.
 
 ## Thread Boundary Recommendation
 
 Use a fresh next thread.
 
 Reason:
-- this thread already completed one coherent product pass
-- beginner, advanced work-style framing, and API/model access were all resolved together here
-- the next step should evaluate the product as it now exists, not continue stacking features into the same thread
-- success criteria for the next step are product-validation criteria, not implementation-completion criteria
+- this thread reached a good product-validation stopping point
+- the major runtime safety issue was resolved
+- the next work is still small product cleanup, not structural refactoring
+- a fresh thread will keep the next pass focused on product usefulness rather than bug triage
 
-## Recommended Next Thread
 
-Stay in product validation and selective cleanup.
-Do not reopen engine refactoring by default.
-
-Suggested objectives:
-1. Audit whether the current UI is actually simpler and more learnable after the recent changes.
-2. Identify any remaining misleading, duplicated, or low-value controls/surfaces.
-3. Verify whether `입문자`, `빠른 실행형`, and `검토 통제형` now feel meaningfully different to a real user.
-4. Make only small, validated fixes that improve clarity without changing the public result envelope or UI/server/adapter contracts.
-5. Only reopen engine work if a concrete product blocker appears.

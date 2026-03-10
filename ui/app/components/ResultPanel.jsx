@@ -11,6 +11,7 @@ import {
   buildProblemFrame,
 } from './result-panel/builders';
 import { buildL1FocusGuideFromWarning } from './result-panel/focus-guide';
+import { GATE_STATUS_META } from './result-panel/constants';
 import {
   CtaHistoryPanel,
   L1HypothesisEditor,
@@ -35,31 +36,49 @@ function buildEmptyL1FocusGuide() {
   };
 }
 
-export default function ResultPanel({
-  status,
-  errorMessage,
-  activeModel,
-  hybridStackGuideStatus,
-  hybridStackGuide,
-  vibe,
-  standardOutput,
-  nondevSpec,
-  devSpec,
-  masterPrompt,
-  promptPolicyMeta,
-  validationReport,
-  clarifyLoop,
-  clarifyApplyNotice,
-  selectedImplementationStack: externalSelectedImplementationStack,
-  onSelectImplementationStack,
-  personaCapabilities,
-  onRefreshHybrid,
-  onSyncWarningToClarify,
-  onSetClarifyAnswer,
-  onRemoveClarifyQuestion,
-  onApplyClarifications,
-  onClearClarifyQuestions,
-}) {
+function getGuideStatusLabel(status) {
+  if (status === 'success') return '추천 준비됨';
+  if (status === 'loading') return '추천 생성 중';
+  if (status === 'error') return '추천 확인 필요';
+  return '추천 전';
+}
+
+function getValidationSeverityLabel(severity) {
+  if (severity === 'high') return '높음';
+  if (severity === 'medium') return '보통';
+  return '낮음';
+}
+
+export default function ResultPanel({ viewModel }) {
+  const session = isObject(viewModel?.session) ? viewModel.session : {};
+  const guide = isObject(viewModel?.guide) ? viewModel.guide : {};
+  const artifacts = isObject(viewModel?.artifacts) ? viewModel.artifacts : {};
+  const diagnostics = isObject(viewModel?.diagnostics) ? viewModel.diagnostics : {};
+  const display = isObject(viewModel?.display) ? viewModel.display : {};
+  const actionHandlers = isObject(viewModel?.actions) ? viewModel.actions : {};
+
+  const activeModel = toText(session.activeModel);
+  const hybridStackGuideStatus = toText(guide.status, 'idle');
+  const hybridStackGuide = guide.data;
+  const vibe = toText(session.vibe);
+  const standardOutput = artifacts.standardOutput;
+  const nondevSpec = toText(artifacts.nondevSpec);
+  const devSpec = toText(artifacts.devSpec);
+  const masterPrompt = toText(artifacts.masterPrompt);
+  const promptPolicyMeta = diagnostics.promptPolicyMeta;
+  const validationReport = diagnostics.validationReport;
+  const clarifyLoop = diagnostics.clarifyLoop;
+  const clarifyApplyNotice = toText(diagnostics.clarifyApplyNotice);
+  const personaCapabilities = display.personaCapabilities;
+  const onRefreshHybrid = actionHandlers.onRefreshHybrid;
+  const onSyncWarningToClarify = actionHandlers.onSyncWarningToClarify;
+  const onSetClarifyAnswer = actionHandlers.onSetClarifyAnswer;
+  const onRemoveClarifyQuestion = actionHandlers.onRemoveClarifyQuestion;
+  const onApplyClarifications = actionHandlers.onApplyClarifications;
+  const onClearClarifyQuestions = actionHandlers.onClearClarifyQuestions;
+  const externalSelectedImplementationStack = guide.selectedImplementationStack;
+  const onSelectImplementationStack = actionHandlers.onSelectImplementationStack;
+
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
   const [hypothesis, setHypothesis] = useState(buildProblemFrame({}));
@@ -170,6 +189,7 @@ export default function ResultPanel({
     hypothesisConfirmed,
     resolvedWarningIds,
   });
+  const gateStatusLabel = GATE_STATUS_META[gateStatus]?.label || gateStatus;
   // 2) Snapshot/rollback primitives for CTA reliability
   const buildPanelSnapshot = useCallback(() => ({
     activeLayer,
@@ -359,7 +379,7 @@ export default function ResultPanel({
           setL1SuggestionStatus('자동으로 덮어쓸 추천값은 없지만, 강조된 필드는 직접 보완이 필요합니다.');
           return;
         }
-        setL1SuggestionStatus('현재 입력값과 다른 추천 가설이 없습니다. 아래 입력 예시를 참고해 입력 매트릭스를 더 구체적으로 작성해 주세요.');
+        setL1SuggestionStatus('현재 입력값과 다른 추천 가설이 없습니다. 아래 입력 예시를 참고해 요청 문장을 더 구체적으로 작성해 주세요.');
       },
     });
   };
@@ -677,39 +697,14 @@ export default function ResultPanel({
     },
   });
 
-  // 7) Status gating + render
-  if (status === 'idle') {
-    return (
-      <section className="panel status-only">
-        <p>요구사항을 입력하면 스펙 생성을 시작합니다.</p>
-      </section>
-    );
-  }
-
-  if (status === 'processing') {
-    return (
-      <section className="panel status-only">
-        <p>스펙 생성 중...</p>
-      </section>
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <section className="panel status-only">
-        <p>오류: {errorMessage || '알 수 없는 오류'}</p>
-      </section>
-    );
-  }
-
   return (
     <section className="result-panel">
       <div className="status-bar">
-        <strong>모델:</strong> {activeModel}
+        <strong>현재 모델:</strong> {activeModel}
         {' | '}
-        <strong>하이브리드 스택:</strong> {hybridStackGuideStatus}
-        <button type="button" className="btn btn-ghost" onClick={onRefreshHybrid}>
-          하이브리드 가이드 새로고침
+        <strong>구현 가이드:</strong> {getGuideStatusLabel(hybridStackGuideStatus)}
+        <button type="button" className="btn btn-ghost" onClick={onRefreshHybrid} disabled={typeof onRefreshHybrid !== 'function'}>
+          구현 가이드 다시 보기
         </button>
       </div>
 
@@ -718,7 +713,7 @@ export default function ResultPanel({
           <div className="panel-head compact-delivery-head">
             <div>
               <h2>바로 쓰는 결과</h2>
-              <p>사람에게 보낼 요청문과 AI에 넣을 프롬프트만 남겨 바로 사용할 수 있게 정리했습니다.</p>
+              <p>바로 복사해 쓸 요청문과 프롬프트만 남겼습니다.</p>
             </div>
             <button type="button" className="btn btn-primary" onClick={handleExportContext}>
               AI 프롬프트 복사
@@ -752,13 +747,13 @@ export default function ResultPanel({
           <details className="collapsible-panel supplementary-panel">
             <summary className="collapsible-panel-summary">
               <div>
-                <h2>하이브리드 스택 가이드 보기</h2>
-                <p>필요할 때만 추천 스택을 펼쳐 참고합니다.</p>
+                <h2>추천 구현 방식</h2>
+                <p>필요할 때만 펼쳐 참고합니다.</p>
               </div>
               <div className="signal-pills collapsible-panel-pills">
-                <span className="pill">상태: {hybridStackGuideStatus}</span>
-                <span className="pill">프레임: {hybridGuideFrameCount}</span>
-                {selectedImplementationStack && <span className="pill">선택: {selectedImplementationStack.name}</span>}
+                <span className="pill">준비 상태: {getGuideStatusLabel(hybridStackGuideStatus)}</span>
+                <span className="pill">추천 수: {hybridGuideFrameCount}</span>
+                {selectedImplementationStack && <span className="pill">선택한 방식: {selectedImplementationStack.name}</span>}
               </div>
             </summary>
             <div className="collapsible-panel-body">
@@ -801,12 +796,12 @@ export default function ResultPanel({
 
       {shouldShowValidationMeta && validationReport && (
         <section className="panel result-meta-panel">
-          <h2>Validation Report</h2>
+          <h2>검토 요약</h2>
           <div className="signal-pills">
-            <span className="pill">severity: {validationSeverity}</span>
-            <span className="pill">blocking: {Number(validationReport?.blocking_issue_count || 0)}</span>
-            <span className="pill">warnings: {Number(validationReport?.warning_count || 0)}</span>
-            <span className="pill">auto proceed: {validationReport?.can_auto_proceed ? 'yes' : 'no'}</span>
+            <span className="pill">검토 강도: {getValidationSeverityLabel(validationSeverity)}</span>
+            <span className="pill">차단 이슈: {Number(validationReport?.blocking_issue_count || 0)}</span>
+            <span className="pill">경고 수: {Number(validationReport?.warning_count || 0)}</span>
+            <span className="pill">바로 진행 가능: {validationReport?.can_auto_proceed ? '예' : '아니오'}</span>
           </div>
           {validationWarnings.length > 0 && (
             <div>
@@ -835,13 +830,13 @@ export default function ResultPanel({
         <details className="collapsible-panel supplementary-panel">
           <summary className="collapsible-panel-summary">
             <div>
-              <h2>이슈 수준 요약 보기</h2>
-              <p>기본 출력 아래에 접어두고, 필요할 때만 펼쳐 세부 이슈를 확인합니다.</p>
+              <h2>이슈 요약</h2>
+              <p>필요할 때만 펼쳐 세부 이슈를 확인합니다.</p>
             </div>
             <div className="signal-pills collapsible-panel-pills">
               <span className="pill">총 이슈: {warningSummary.total}</span>
               <span className="pill">즉시 확인: {warningSummary.hardBlockCount}</span>
-              <span className="pill">게이트: {gateStatus}</span>
+              <span className="pill">진행 상태: {gateStatusLabel}</span>
             </div>
           </summary>
           <div className="collapsible-panel-body">
@@ -863,12 +858,12 @@ export default function ResultPanel({
       {shouldShowLayerPanels && (
         <section className="panel task-workbench-panel">
           <div className="panel-head">
-            <h2>작업 워크벤치</h2>
-            <p>레이어를 눌러 이동하지 않고, 요구 확정부터 경고 해소와 전달 출력까지 한 화면에서 처리합니다.</p>
+            <h2>작업 정리판</h2>
+            <p>요구 정리부터 경고 확인, 전달 출력까지 한 화면에서 봅니다.</p>
           </div>
           <div className="signal-pills task-workbench-meta">
             <span className="pill">현재 포커스: {activeLayer}</span>
-            <span className="pill">게이트: {gateStatus}</span>
+            <span className="pill">진행 상태: {gateStatusLabel}</span>
             <span className="pill">미해결 경고: {unresolvedWarnings.length}</span>
             <span className="pill">보완 질문: {manualLoopQuestionCount}</span>
           </div>
@@ -903,7 +898,7 @@ export default function ResultPanel({
                 clarifyAnswers={manualLoopAnswers}
                 canSubmitClarifications={canSubmitManualLoop}
                 clarifyApplyNotice={clarifyApplyNotice}
-                isProcessing={status === 'processing'}
+                isProcessing={false}
                 canSyncToManualLoop={canSyncToManualLoop}
                 allowExecutionActions={shouldAllowExecutionActions}
                 onChangeActionPackPreset={changeActionPackPreset}
@@ -973,33 +968,5 @@ export default function ResultPanel({
     </section>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

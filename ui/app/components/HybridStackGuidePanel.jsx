@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -63,7 +63,7 @@ export default function HybridStackGuidePanel({
   guide,
   status = 'idle',
   compact = false,
-  title = '하이브리드 스택 가이드',
+  title = '추천 구현 방식',
   selectedStackId = '',
   onSelectStack,
 }) {
@@ -79,19 +79,19 @@ export default function HybridStackGuidePanel({
       </div>
 
       {status === 'idle' && (
-        <p className="small-muted">아직 하이브리드 스택 가이드가 생성되지 않았습니다.</p>
+        <p className="small-muted">아직 추천 구현 방식이 준비되지 않았습니다.</p>
       )}
 
       {status === 'loading' && (
-        <p className="small-muted">요구와 스펙을 기준으로 추천 스택 프레임을 계산하는 중입니다.</p>
+        <p className="small-muted">요구와 스펙을 기준으로 추천 구현 방식을 정리하는 중입니다.</p>
       )}
 
       {status === 'error' && (
-        <p className="small-muted">하이브리드 스택 가이드를 가져오지 못했습니다. 새로고침으로 다시 시도할 수 있습니다.</p>
+        <p className="small-muted">추천 구현 방식을 가져오지 못했습니다. 다시 보기로 다시 시도할 수 있습니다.</p>
       )}
 
       {status === 'success' && frames.length === 0 && (
-        <p className="small-muted">추천 가능한 스택 프레임이 아직 비어 있습니다.</p>
+        <p className="small-muted">추천 가능한 구현 방식이 아직 비어 있습니다.</p>
       )}
 
       {status === 'success' && frames.length > 0 && (

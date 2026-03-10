@@ -18,44 +18,21 @@ export default function ControlPanel({
   onTransmute,
   clarifyApplyNotice = '',
 }) {
+  const providerLabel = providerOptions.find((provider) => provider.id === apiProvider)?.label || apiProvider;
+  const modelLabel = isModelOptionsLoading
+    ? '불러오는 중'
+    : (selectedModel || modelOptions[0] || '선택 안 됨');
+
   return (
     <section className="panel control-panel">
       <div className="panel-head">
-        <h2>입력 매트릭스</h2>
-        <p>프로바이더/모델 설정 후 요구를 입력해 스펙 변환을 시작합니다.</p>
+        <h2>요구 입력</h2>
+        <p>요구를 적고 바로 변환을 시작합니다. 프로바이더와 모델은 상단 헤더나 설정에서 바꿉니다.</p>
       </div>
 
-      <div className="control-grid">
-        <div className="form-group">
-          <label htmlFor="provider">프로바이더</label>
-          <select
-            id="provider"
-            value={apiProvider}
-            onChange={(event) => onProviderChange(event.target.value)}
-            disabled={status === 'processing'}
-          >
-            {providerOptions.map((provider) => (
-              <option key={provider.id} value={provider.id}>
-                {provider.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="model">모델</label>
-          <select
-            id="model"
-            value={selectedModel}
-            onChange={(event) => onModelChange(event.target.value)}
-            disabled={status === 'processing' || isModelOptionsLoading || modelOptions.length === 0}
-          >
-            {modelOptions.length === 0 && <option value="">모델 없음</option>}
-            {modelOptions.map((model) => (
-              <option key={model} value={model}>{model}</option>
-            ))}
-          </select>
-        </div>
+      <div className="signal-pills">
+        <span className="pill">프로바이더: {providerLabel}</span>
+        <span className="pill">모델: {modelLabel}</span>
       </div>
 
       <div className="checkbox-row">
@@ -71,8 +48,13 @@ export default function ControlPanel({
 
       {showApiSettings && (
         <div className="stack-actions form-group">
-          <button type="button" className="btn btn-ghost" onClick={onOpenSettings}>
-            API 키 설정
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onOpenSettings}
+            disabled={status === 'processing'}
+          >
+            API / 모델 설정 열기
           </button>
         </div>
       )}

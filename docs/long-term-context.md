@@ -1,4 +1,4 @@
-﻿# Long-Term Context
+# Long-Term Context
 
 ## Why This Document Exists
 This document captures the stable long-term intent behind the project so new AI threads do not need the same background explanation every time.
@@ -38,6 +38,11 @@ A good outcome is:
 - visible structure
 - small guided improvement
 - repeated learning through use
+
+A good advanced-mode outcome is also:
+- shared diagnostics can be reused across modes when the framing stays work-style-specific
+- high-density panels should appear only when the result is actually ready
+- when a shared panel fails, the UI should degrade to a safe status card rather than a blank screen
 
 ## Long-Term Product Roadmap
 This repository is one step in a larger product family.
@@ -246,6 +251,7 @@ When working in this repository, assume the following:
 - engine quality matters more than short-term hacks
 - maintainability and future renderer reuse are core requirements
 - the UI should teach structure, not just produce outputs that happen to run
+- shared advanced panels are acceptable, but they should fail safe and never disappear into a blank screen
 
 If a proposed change solves a local problem but makes reuse harder for `Vibe-to-Prompt`, `Vibe-to-Architecture`, or `Vibe Studio`, prefer a more modular design.
 
@@ -260,94 +266,6 @@ What is already true:
   - `artifacts.dev_spec_md`
   - `artifacts.nondev_spec_md`
   - `artifacts.master_prompt`
-  - `layers.L1_thinking`
-  - `glossary`
-- `engine/graph/transmuteEngine.js` remains the public facade and keeps the current app contract stable.
-- `engine/intent/normalizeSpecDraft.js` owns raw provider JSON -> spec draft normalization.
-- `engine/intent/prepareSpecAnalysis.js` owns normalized-spec-afterward analysis preparation.
-- `normalizeStandardOutput` is a thin composition boundary for:
-  - `normalizeSpecDraft`
-  - `prepareSpecAnalysis`
-  - validation
-- `engine/validation/semanticRepairIssues.js` owns semantic repair issue collection.
-- `engine/execution/executeStructuredGeneration.js` owns reusable structured-generation retry orchestration around:
-  - prompt attempt execution
-  - semantic handoff consumption
-  - `strict_format` retry
-  - `semantic_repair` retry
-- `executePromptRepairChain` in `engine/graph/transmuteEngine.js` is now a thin wrapper around that execution-stage helper.
-
-What still remains inside the facade:
-- prompt construction and prompt-policy wiring
-- JSON parse + one-retry repair for a single prompt attempt
-- provider/model selection
-- provider transport and remote execution
-- public facade wiring into `runSpecTransmutePipeline`
-
-What should not be forced next by default:
-- another structural engine extraction just for neatness
-- provider transport redesign without a product-facing reason
-- moving intent IR earlier before product validation shows that it is necessary
-- mixing renderer redesign with engine execution cleanup
-- automatic model switching after runtime failure when the real issue is often quota/account/provider constraints
-
-## Product Validation Pressure Points
-The next meaningful risk is no longer "can the engine be split one more time?"
-It is "does the current product actually deliver the right learning experience and work-style fit?"
-
-Current product-validation concerns to keep testing:
-- are the three modes now clearly differentiated to real users?
-- is there still duplicated or misleading surface left in advanced UI?
-- are there still controls that promise more than the visible UX really explains?
-- is beginner now simple enough without becoming too shallow?
-- should advanced remain two lanes, or does later validation suggest collapsing them?
-
-These are now better next investments than deeper engine cleanup.
-
-## Safe Handoff Guidance
-Keep renderer separation, analysis separation, generation/execution separation, and product-validation work as distinct tracks unless the change is extremely small and mechanical.
-
-Recommended rule:
-- if the thread is about renderer separation, stay inside `engine/renderers/spec/*`, `engine/pipeline/*`, and minimal facade wiring in `engine/graph/transmuteEngine.js`
-- if the thread is about analysis separation, focus on `engine/intent/*`, `engine/contracts/*`, `engine/pipeline/*`, and the normalization / interpretation boundary
-- if the thread is about generation/execution separation, focus on `engine/graph/transmuteEngine.js`, `engine/pipeline/*`, `engine/validation/*`, and `engine/execution/*`
-- if the thread is about product validation, allow `ui/*` plus minimal engine touch only when a concrete persona/output problem requires it
-- avoid mixing a large renderer refactor, a large analysis refactor, and a large product-surface cleanup in one thread
-
-At the current point, starting a fresh thread is the safer default before the next product-validation pass, because the current thread completed one coherent UX pass and the next lane has different goals and success criteria.
-
-## Short Context Prompt For New Threads
-Use this when starting a new AI thread:
-
-```text
-Before making changes, use this project context:
-- This repository is Vibe-to-Spec V2, an education-first tool for non-developers, non-CS learners, vibe coders, and AI beginners.
-- The product should not teach black-box dependence. It should preserve fast success while revealing structure.
-- The long-term goal is not only a spec generator, but a reusable intent engine that will later power Vibe-to-Prompt, Vibe-to-Architecture, and finally Vibe Studio.
-- So please prefer engine-first, reusable, modular designs.
-- Treat spec output as one renderer/product, not as the permanent shape of the core engine.
-- Favor changes that improve intent analysis, ambiguity detection, clarification flow, validation quality, generation/execution separation, renderer separation, and beginner-friendly learning value.
-- Avoid designs that hardcode spec-only assumptions deep into the engine.
-- Current status: `engine/renderers/spec/specRenderer.js` owns spec artifact/compatibility generation, `engine/pipeline/buildSpecTransmuteResult.js` and `engine/pipeline/runSpecTransmutePipeline.js` keep the result envelope stable, `engine/intent/normalizeSpecDraft.js` owns raw provider JSON -> spec draft normalization, `engine/intent/prepareSpecAnalysis.js` owns normalized-spec-afterward analysis preparation, `engine/validation/semanticRepairIssues.js` owns semantic issue collection, and `engine/execution/executeStructuredGeneration.js` owns reusable structured-generation retry orchestration.
-- Current caution: do not break the existing UI/server/adapter contract or the current result shape.
-- Current recommendation: pause structural engine refactoring unless a product-validation thread finds a concrete blocker.
-
-For this task, focus on the current repo stage while preserving future reuse.
-```
-
-## Expanded Context Prompt For Planning Threads
-Use this when asking for architecture advice or refactoring strategy:
-
-```text
-Use this long-term context for your reasoning:
-- Vibe-to-Spec V2 is the first product in a larger family.
-- The future family includes Vibe-to-Prompt, Vibe-to-Architecture, and a unified Vibe Studio.
-- The real long-term asset is a reusable intent analysis engine, not only the current spec output.
-- Therefore, generation, analysis, planning, validation, and rendering should become more separable over time.
-- The target audience is educational: non-developers, non-CS learners, vibe coders, and AI beginners, including the creator.
-- Recommendations should optimize for modularity, explainability, educational clarity, and long-term extensibility.
-- Current status: pipeline extraction exists, spec renderer extraction exists, raw-to-spec draft normalization now lives in `engine/intent/normalizeSpecDraft.js`, post-normalization analysis preparation now lives in `engine/intent/prepareSpecAnalysis.js`, semantic repair issue collection lives in `engine/validation/semanticRepairIssues.js`, and structured-generation retry orchestration lives in `engine/execution/executeStructuredGeneration.js`.
-- The current default is to validate persona fit, educational UX, and product output quality before attempting deeper engine cleanup again.
-
-Please evaluate the current change or architecture with that lens.
-```
+  - spec-oriented result sections for the app
+- `engine/graph/transmuteEngine.js` is still the product-facing facade.
+- further engine work should be reopened only if product validation reveals a concrete blocker.

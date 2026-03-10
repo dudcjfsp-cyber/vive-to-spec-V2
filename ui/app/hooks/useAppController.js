@@ -503,7 +503,7 @@ export function useAppController({ personaConfig = null } = {}) {
 
     setVibe(clarifiedVibe);
     setErrorMessage('');
-    setClarifyApplyNotice('보완 내용이 입력 매트릭스에 반영되었습니다. 생성 버튼을 눌러 다시 실행해 주세요.');
+    setClarifyApplyNotice('보완 내용이 입력에 반영되었습니다. 생성 버튼을 눌러 다시 실행해 주세요.');
 
     shadowWriteSpecState({
       ...buildClarifyAnsweredShadowPayload({

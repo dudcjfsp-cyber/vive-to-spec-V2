@@ -255,6 +255,22 @@ body::after {
   margin-top: 8px;
 }
 
+.major-readiness-details {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(136, 208, 255, 0.14);
+}
+
+.major-readiness-details summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.major-readiness-details[open] summary {
+  margin-bottom: 8px;
+}
+
 .major-blocking-box {
   margin-top: 9px;
   padding: 8px;

@@ -1,7 +1,8 @@
 ﻿import React, { useMemo } from 'react';
+import AdvancedResultPane from './AdvancedResultPane.jsx';
 import ControlPanel from './ControlPanel';
-import ResultPanel from './ResultPanel';
 import WorkspaceStatusCard from './WorkspaceStatusCard.jsx';
+import { buildAdvancedResultViewModel } from './result-panel/buildAdvancedResultViewModel.js';
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
@@ -29,6 +30,20 @@ function isRequiredField(value) {
   const text = toText(value).toLowerCase();
   if (!text) return false;
   return ['required', 'yes', 'true', 'y', '필수'].some((token) => text.includes(token));
+}
+
+function getValidationSeverityLabel(severity) {
+  const normalized = toText(severity, 'low').toLowerCase();
+  if (normalized === 'high') return '높음';
+  if (normalized === 'medium') return '보통';
+  return '낮음';
+}
+
+function summarizeContractField(field) {
+  const name = toText(field?.이름, '필드');
+  const type = toText(field?.타입, 'string');
+  const requiredLabel = isRequiredField(field?.필수) ? '필수' : '선택';
+  return `${name} (${type}, ${requiredLabel})`;
 }
 
 const REVIEW_STEPS = [
@@ -73,6 +88,32 @@ function buildMajorStatus(state) {
   };
 }
 
+function buildMajorResultPanelStatus(state) {
+  if (state.status === 'processing') {
+    return {
+      tone: 'processing',
+      title: '검토 결과 준비 중',
+      body: '차단 이슈와 검토 근거가 정리되면 오른쪽에 상세 검토판을 보여줍니다.',
+      items: ['왼쪽 입력은 그대로 유지됩니다.', '결과 생성 후 검토 요약과 세부 작업판 표시'],
+    };
+  }
+
+  if (state.status === 'error') {
+    return {
+      tone: 'error',
+      title: '검토 결과를 아직 표시할 수 없음',
+      body: `오류: ${state.errorMessage || '알 수 없는 오류'}`,
+      items: ['왼쪽 요구를 조금 더 구체적으로 정리하세요.', '다시 변환을 실행한 뒤 상세 검토판을 확인하세요.'],
+    };
+  }
+
+  return {
+    tone: 'idle',
+    title: '검토 결과는 생성 후 표시됩니다',
+    body: '왼쪽에서 변환을 시작하면, 여기에서 차단 이슈, 검토 요약, 세부 작업판을 확인합니다.',
+    items: ['먼저 요구를 입력하고 변환 시작', '생성 후 차단 이슈와 영향 범위 확인'],
+  };
+}
 export default function MajorWorkspace({
   state,
   derived,
@@ -110,6 +151,34 @@ export default function MajorWorkspace({
     '외부 API 실패/타임아웃: 1회 재시도 후 실패 원인을 로그와 사용자 메시지로 분리합니다.',
     '권한 충돌: 삭제 작업은 승인 단계 이후에만 실행하도록 보호 규칙을 강제합니다.',
   ], []);
+  const reliabilityItems = useMemo(() => {
+    const prioritized = [
+      ...blockingIssues.map((item) => `차단: ${item}`),
+      ...schemaWarnings.map((item) => `경고: ${item}`),
+    ];
+    if (prioritized.length > 0) return prioritized;
+    return ['현재 즉시 차단 이슈는 없습니다.', '지금 보이는 스키마 경고도 낮은 수준입니다.'];
+  }, [blockingIssues, schemaWarnings]);
+  const reliabilitySummaryItems = reliabilityItems.slice(0, 2);
+  const reliabilityExtraItems = [...reliabilityItems.slice(2), ...exceptionPolicies];
+  const contractFieldItems = useMemo(() => {
+    if (inputFields.length === 0) return ['입력 데이터 필드가 아직 정의되지 않았습니다.'];
+    return inputFields.map((field) => summarizeContractField(field));
+  }, [inputFields]);
+  const contractSummaryItems = contractFieldItems.slice(0, 3);
+  const contractExtraItems = contractFieldItems.slice(3);
+  const impactItems = useMemo(() => {
+    const combined = [
+      ...impactPreview.screens.map((item) => `화면: ${item}`),
+      ...impactPreview.permissions.map((item) => `권한: ${item}`),
+      ...impactPreview.tests.map((item) => `테스트: ${item}`),
+    ];
+    if (combined.length > 0) return combined;
+    return ['아직 화면 영향 정보가 없습니다.', '권한과 테스트 영향도 아직 정리되지 않았습니다.'];
+  }, [impactPreview.permissions, impactPreview.screens, impactPreview.tests]);
+  const impactSummaryItems = impactItems.slice(0, 3);
+  const impactExtraItems = impactItems.slice(3);
+  const activeModelLabel = toText(state.activeModel, '확인 중');
   const statusCard = buildMajorStatus(state);
 
   const reviewFlow = (
@@ -133,33 +202,26 @@ export default function MajorWorkspace({
     <section className="panel major-engineering-overview">
       <div className="panel-head">
         <h2>검토 우선 대시보드</h2>
-        <p>직접 검토하고 통제하려는 작업 방식에 맞춰, 구현 전에 볼 리스크만 세 가지 축으로 압축했습니다.</p>
+        <p>직접 검토하고 통제하려는 작업 방식에 맞춰, 구현 전에 볼 리스크만 세 가지 축으로 압축했습니다. 먼저 볼 것만 확인하고, 자세한 근거는 필요할 때만 펼치면 됩니다.</p>
       </div>
       <div className="major-readiness-grid major-readiness-grid-compact">
         <article className="major-readiness-card">
           <h3>신뢰성</h3>
           <div className="signal-pills">
-            <span className="pill">심각도: {validationSeverity}</span>
+            <span className="pill">심각도: {getValidationSeverityLabel(validationSeverity)}</span>
             <span className="pill">경고: {schemaWarnings.length}</span>
             <span className="pill">차단: {blockingIssues.length}</span>
           </div>
-          <p className="small-muted">엣지케이스 및 예외 처리 기준</p>
+          <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {(schemaWarnings.length > 0 ? schemaWarnings : ['현재 감지된 스키마 경고가 없습니다.'])
-              .slice(0, 3)
-              .map((item, index) => <li key={`major-reliability-warning-${index}`}>{item}</li>)}
+            {reliabilitySummaryItems.map((item, index) => <li key={`major-reliability-summary-${index}`}>{item}</li>)}
           </ul>
-          {blockingIssues.length > 0 && (
-            <div className="major-blocking-box">
-              <strong>먼저 막히는 항목</strong>
-              <ul className="major-readiness-list compact">
-                {blockingIssues.map((item, index) => <li key={`major-blocking-${index}`}>{item}</li>)}
-              </ul>
-            </div>
-          )}
-          <ul className="major-readiness-list compact">
-            {exceptionPolicies.slice(0, 2).map((item, index) => <li key={`major-exception-${index}`}>{item}</li>)}
-          </ul>
+          <details className="major-readiness-details">
+            <summary>예외 기준과 추가 이슈 {reliabilityExtraItems.length}개 보기</summary>
+            <ul className="major-readiness-list compact">
+              {reliabilityExtraItems.map((item, index) => <li key={`major-reliability-extra-${index}`}>{item}</li>)}
+            </ul>
+          </details>
         </article>
 
         <article className="major-readiness-card">
@@ -167,21 +229,20 @@ export default function MajorWorkspace({
           <div className="signal-pills">
             <span className="pill">스키마 필드: {inputFields.length}</span>
             <span className="pill">필수: {requiredFieldCount}</span>
-            <span className="pill">모델: {state.activeModel}</span>
+            <span className="pill">모델: {activeModelLabel}</span>
           </div>
-          <p className="small-muted">입력 필드와 권한/계약 범위를 빠르게 훑습니다.</p>
+          <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {(inputFields.length > 0
-              ? inputFields.map((field) => {
-                const name = toText(field?.이름, '필드');
-                const type = toText(field?.타입, 'string');
-                const requiredLabel = isRequiredField(field?.필수) ? '필수' : '선택';
-                return `${name} (${type}, ${requiredLabel})`;
-              })
-              : ['입력 데이터 필드가 아직 정의되지 않았습니다.'])
-              .slice(0, 5)
-              .map((item, index) => <li key={`major-contract-field-${index}`}>{item}</li>)}
+            {contractSummaryItems.map((item, index) => <li key={`major-contract-summary-${index}`}>{item}</li>)}
           </ul>
+          {contractExtraItems.length > 0 && (
+            <details className="major-readiness-details">
+              <summary>나머지 필드 {contractExtraItems.length}개 보기</summary>
+              <ul className="major-readiness-list compact">
+                {contractExtraItems.map((item, index) => <li key={`major-contract-extra-${index}`}>{item}</li>)}
+              </ul>
+            </details>
+          )}
         </article>
 
         <article className="major-readiness-card">
@@ -191,26 +252,18 @@ export default function MajorWorkspace({
             <span className="pill">권한: {impactPreview.permissions.length}</span>
             <span className="pill">테스트: {impactPreview.tests.length}</span>
           </div>
-          <p className="small-muted">변경 전에 확인할 영향 범위를 빠르게 압축합니다.</p>
+          <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {(impactPreview.screens.length > 0
-              ? impactPreview.screens.map((item) => `화면: ${item}`)
-              : ['화면 영향 정보가 아직 없습니다.'])
-              .slice(0, 3)
-              .map((item, index) => <li key={`major-impact-screen-${index}`}>{item}</li>)}
+            {impactSummaryItems.map((item, index) => <li key={`major-impact-summary-${index}`}>{item}</li>)}
           </ul>
-          <ul className="major-readiness-list compact">
-            {(impactPreview.permissions.length > 0
-              ? impactPreview.permissions.map((item) => `권한: ${item}`)
-              : ['권한 영향 정보가 아직 없습니다.'])
-              .slice(0, 2)
-              .map((item, index) => <li key={`major-impact-permission-${index}`}>{item}</li>)}
-            {(impactPreview.tests.length > 0
-              ? impactPreview.tests.map((item) => `테스트: ${item}`)
-              : ['테스트 영향 정보가 아직 없습니다.'])
-              .slice(0, 2)
-              .map((item, index) => <li key={`major-impact-test-${index}`}>{item}</li>)}
-          </ul>
+          {impactExtraItems.length > 0 && (
+            <details className="major-readiness-details">
+              <summary>추가 영향 {impactExtraItems.length}개 보기</summary>
+              <ul className="major-readiness-list compact">
+                {impactExtraItems.map((item, index) => <li key={`major-impact-extra-${index}`}>{item}</li>)}
+              </ul>
+            </details>
+          )}
         </article>
       </div>
     </section>
@@ -226,10 +279,10 @@ export default function MajorWorkspace({
         <div className="signal-pills">
           <span className="pill">판단 근거 우선</span>
           <span className="pill">계약/영향 검토</span>
-          <span className="pill">flow: review -&gt; decide -&gt; output</span>
+          <span className="pill">순서: 검토 -&gt; 결정 -&gt; 결과 확정</span>
         </div>
         <p className="small-muted persona-mode-note">
-          입문자나 빠른 실행형에서 한 단계 올라가, 구현 전에 스스로 검토 근거를 확인하고 통제하는 단계입니다.
+          이 모드는 다른 모드보다 더 많이 설명하는 대신, 구현 전에 스스로 검토 근거를 확인하고 통제하는 작업 방식에 맞춰져 있습니다.
         </p>
       </section>
 
@@ -245,56 +298,42 @@ export default function MajorWorkspace({
       {reviewFlow}
       {state.status === 'success' && engineeringOverview}
 
-      {state.status === 'success' && (
-        <div className="layout-grid major-layout-grid">
-          <div className="layout-left">
-            <ControlPanel
-              vibe={state.vibe}
-              status={state.status}
-              apiProvider={state.apiProvider}
-              providerOptions={derived.providerOptions}
-              modelOptions={state.modelOptions}
-              selectedModel={state.selectedModel}
-              isModelOptionsLoading={state.isModelOptionsLoading}
-              showThinking={state.showThinking}
-              onVibeChange={actions.setVibe}
-              onProviderChange={actions.setApiProvider}
-              onModelChange={actions.setSelectedModel}
-              onShowThinkingChange={actions.setShowThinking}
-              showApiSettings={showApiSettings}
-              onOpenSettings={() => actions.setIsSettingsOpen(true)}
-              onTransmute={actions.handleTransmute}
-              clarifyApplyNotice={derived.clarifyApplyNotice}
-            />
-          </div>
-
-          <div className="layout-right">
-            <ResultPanel
-              status={state.status}
-              errorMessage={state.errorMessage}
-              activeModel={state.activeModel}
-              hybridStackGuideStatus={state.hybridStackGuideStatus}
-              hybridStackGuide={state.hybridStackGuide}
-              vibe={state.vibe}
-              standardOutput={derived.standardOutput}
-              nondevSpec={derived.nondevSpec}
-              devSpec={derived.devSpec}
-              masterPrompt={derived.masterPrompt}
-              promptPolicyMeta={derived.promptPolicyMeta}
-              validationReport={derived.validationReport}
-              clarifyLoop={derived.clarifyLoop}
-              clarifyApplyNotice={derived.clarifyApplyNotice}
-              personaCapabilities={personaCapabilities}
-              onRefreshHybrid={actions.handleRefreshHybrid}
-              onSyncWarningToClarify={actions.syncWarningToClarifyLoop}
-              onSetClarifyAnswer={actions.setClarifyAnswer}
-              onRemoveClarifyQuestion={actions.removeClarifyQuestion}
-              onApplyClarifications={actions.handleApplyClarifications}
-              onClearClarifyQuestions={actions.clearClarifyQuestions}
-            />
-          </div>
+      <div className="layout-grid major-layout-grid">
+        <div className="layout-left">
+          <ControlPanel
+            vibe={state.vibe}
+            status={state.status}
+            apiProvider={state.apiProvider}
+            providerOptions={derived.providerOptions}
+            modelOptions={state.modelOptions}
+            selectedModel={state.selectedModel}
+            isModelOptionsLoading={state.isModelOptionsLoading}
+            showThinking={state.showThinking}
+            onVibeChange={actions.setVibe}
+            onProviderChange={actions.setApiProvider}
+            onModelChange={actions.setSelectedModel}
+            onShowThinkingChange={actions.setShowThinking}
+            showApiSettings={showApiSettings}
+            onOpenSettings={() => actions.setIsSettingsOpen(true)}
+            onTransmute={actions.handleTransmute}
+            clarifyApplyNotice={derived.clarifyApplyNotice}
+          />
         </div>
-      )}
+
+        <div className="layout-right">
+          <AdvancedResultPane
+            statusCard={buildMajorResultPanelStatus(state)}
+            resultViewModel={buildAdvancedResultViewModel({
+              state,
+              derived,
+              personaCapabilities,
+              actions,
+            })}
+          />
+        </div>
+      </div>
     </section>
   );
 }
+
+

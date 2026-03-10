@@ -1,7 +1,22 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ActionPriorityLegend, PriorityActionList } from '../../PriorityActionList';
 import { GATE_STATUS_META, WARNING_DOMAIN_LABEL } from '../constants';
 import { isObject, toText } from '../utils';
+
+function getSeverityLabel(severity) {
+  const normalized = toText(severity).toLowerCase();
+  if (normalized === 'critical') return '매우 높음';
+  if (normalized === 'high') return '높음';
+  if (normalized === 'medium') return '보통';
+  return '낮음';
+}
+
+function getValidationSeverityLabel(severity) {
+  const normalized = toText(severity).toLowerCase();
+  if (normalized === 'high') return '높음';
+  if (normalized === 'medium') return '보통';
+  return '낮음';
+}
 
 export function L4IntegritySimulator({
   gateStatus,
@@ -78,7 +93,7 @@ export function L4IntegritySimulator({
         <article key={warning.id} className="warning-card">
           <strong className="warning-title">{warning.title}</strong>
           <p className="warning-meta">
-            {warning.severity.toUpperCase()} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | score {warning.score}
+            심각도 {getSeverityLabel(warning.severity)} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | 우선도 {warning.score}
           </p>
           <p>{warning.detail}</p>
           {allowActions && (
@@ -113,7 +128,7 @@ export function L4IntegritySimulator({
             <article key={warning.id} className="warning-card warning-card-muted">
               <strong className="warning-title">{warning.title}</strong>
               <p className="warning-meta">
-                {warning.severity.toUpperCase()} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | score {warning.score}
+                심각도 {getSeverityLabel(warning.severity)} | {WARNING_DOMAIN_LABEL[warning.domain] || warning.domain} | 우선도 {warning.score}
               </p>
               <p>{warning.detail}</p>
               {allowActions && (
@@ -149,7 +164,7 @@ export function L4IntegritySimulator({
           <ul>
             {remainingWarnings.map((warning) => (
               <li key={warning.id}>
-                {warning.title} (score {warning.score})
+                {warning.title} (우선도 {warning.score})
               </li>
             ))}
           </ul>
@@ -223,13 +238,13 @@ export function L5ActionBinder({
         <div className="form-group">
           <strong>수동 루프</strong>
           <div className="signal-pills">
-            <span className="pill">validation: {toText(validationSeverity, 'low')}</span>
-            <span className="pill">blocking: {visibleBlockingIssues.length}</span>
-            <span className="pill">questions: {clarifyQuestions.length}</span>
+            <span className="pill">검토 강도: {getValidationSeverityLabel(validationSeverity)}</span>
+            <span className="pill">차단 이슈: {visibleBlockingIssues.length}</span>
+            <span className="pill">질문 수: {clarifyQuestions.length}</span>
           </div>
           <p className="small-muted">
             {hasClarifyQuestions
-              ? `수동 루프 질문 ${clarifyQuestions.length}개를 입력 매트릭스에 반영한 뒤, 변환 시작을 직접 실행하세요.`
+              ? `수동 루프 질문 ${clarifyQuestions.length}개를 입력에 반영한 뒤, 변환 시작을 직접 실행하세요.`
               : '아직 준비된 수동 루프 질문이 없습니다.'}
           </p>
           {visibleBlockingIssues.length > 0 && (
@@ -284,7 +299,7 @@ export function L5ActionBinder({
                   onClick={onApplyClarifications}
                   disabled={isProcessing || typeof onApplyClarifications !== 'function' || !canSubmitClarifications}
                 >
-                  입력 매트릭스 반영
+                  입력에 반영
                 </button>
                 <button
                   type="button"
@@ -322,7 +337,7 @@ export function L5ActionBinder({
         </div>
       )}
       {gateStatus === 'blocked' && <p className="small-muted">차단 경고가 남아 있어 복사 및 전달이 비활성화되었습니다.</p>}
-      {gateStatus === 'review' && <p className="small-muted">경고가 남아 있어 review 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
+      {gateStatus === 'review' && <p className="small-muted">경고가 남아 있어 검토 상태입니다. 실행 전 상위 경고를 먼저 처리하는 것을 권장합니다.</p>}
       {actionPackExportStatus && <p className="small-muted">{actionPackExportStatus}</p>}
       {actionPack && (
         <pre className="mono-block">

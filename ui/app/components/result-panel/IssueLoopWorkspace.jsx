@@ -1,5 +1,5 @@
-﻿import React, { useMemo } from 'react';
-import { WARNING_DOMAIN_LABEL } from './constants';
+import React, { useMemo } from 'react';
+import { GATE_STATUS_META, WARNING_DOMAIN_LABEL } from './constants';
 import { toText } from './utils';
 
 const ISSUE_STAGES = [
@@ -30,6 +30,14 @@ function resolveIssueStageId(warning) {
   return 'refine';
 }
 
+function getSeverityLabel(severity) {
+  const normalized = toText(severity).toLowerCase();
+  if (normalized === 'critical') return '매우 높음';
+  if (normalized === 'high') return '높음';
+  if (normalized === 'medium') return '보통';
+  return '낮음';
+}
+
 function IssueStageCard({ stage, items }) {
   const visibleItems = items.slice(0, 4);
   const remainingCount = Math.max(items.length - visibleItems.length, 0);
@@ -50,7 +58,7 @@ function IssueStageCard({ stage, items }) {
               <li key={item.id} className="issue-level-item">
                 <strong>{item.title}</strong>
                 <p className="small-muted">
-                  {item.severity?.toUpperCase()} | {domainLabel} | score {Number(item.score || 0)}
+                  심각도 {getSeverityLabel(item.severity)} | {domainLabel} | 우선도 {Number(item.score || 0)}
                 </p>
                 <p>{item.detail}</p>
               </li>
@@ -68,6 +76,7 @@ export default function IssueLoopWorkspace({
   warningSummary,
   unresolvedWarnings,
 }) {
+  const gateLabel = GATE_STATUS_META[gateStatus]?.label || gateStatus;
   const stageGroups = useMemo(
     () => ISSUE_STAGES.map((stage) => ({
       ...stage,
@@ -84,7 +93,7 @@ export default function IssueLoopWorkspace({
       </div>
 
       <div className="signal-pills">
-        <span className={`pill ${gateStatus === 'pass' ? '' : 'warning'}`}>게이트: {gateStatus}</span>
+        <span className={`pill ${gateStatus === 'pass' ? '' : 'warning'}`}>진행 상태: {gateLabel}</span>
         <span className="pill">강한 차단: {Number(warningSummary?.hardBlockCount || 0)}</span>
         <span className="pill">총 경고: {Number(warningSummary?.total || unresolvedWarnings.length || 0)}</span>
       </div>

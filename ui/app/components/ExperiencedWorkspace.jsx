@@ -1,10 +1,11 @@
 ﻿import React, { useEffect, useState } from 'react';
+import AdvancedResultPane from './AdvancedResultPane.jsx';
 import { PriorityActionList } from './PriorityActionList';
 import ControlPanel from './ControlPanel';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
-import ResultPanel from './ResultPanel';
 import WorkspaceStatusCard from './WorkspaceStatusCard.jsx';
 import { useExperiencedSummary } from './hooks/useExperiencedSummary.js';
+import { buildAdvancedResultViewModel } from './result-panel/buildAdvancedResultViewModel.js';
 
 function renderSharedDiagnosticsLayout({
   state,
@@ -50,28 +51,59 @@ function renderSharedDiagnosticsLayout({
       </div>
 
       <div className="layout-right">
-        <ResultPanel
-          status={state.status}
-          errorMessage={state.errorMessage}
-          activeModel={state.activeModel}
-          hybridStackGuideStatus={state.hybridStackGuideStatus}
-          hybridStackGuide={state.hybridStackGuide}
-          vibe={state.vibe}
-          standardOutput={derived.standardOutput}
-          nondevSpec={derived.nondevSpec}
-          devSpec={derived.devSpec}
-          masterPrompt={derived.masterPrompt}
-          promptPolicyMeta={derived.promptPolicyMeta}
-          validationReport={derived.validationReport}
-          clarifyApplyNotice={derived.clarifyApplyNotice}
-          selectedImplementationStack={selectedImplementationStack}
-          onSelectImplementationStack={onSelectImplementationStack}
-          personaCapabilities={diagnosticsCapabilities}
-          onRefreshHybrid={actions.handleRefreshHybrid}
+        <AdvancedResultPane
+          statusCard={buildDiagnosticsPanelStatus(state)}
+          resultViewModel={buildAdvancedResultViewModel({
+            state,
+            derived,
+            personaCapabilities: diagnosticsCapabilities,
+            selectedImplementationStack,
+            onSelectImplementationStack,
+            actions,
+          })}
         />
       </div>
     </div>
   );
+}
+
+function buildDiagnosticsPanelStatus(state) {
+  if (state.status === 'processing') {
+    return {
+      tone: 'processing',
+      title: '세부 진단 준비 중',
+      body: '요약 결과가 정리되면 이 자리에서 상위 경고와 세부 작업판을 보여줍니다.',
+      items: ['왼쪽 입력은 그대로 유지됩니다.', '결과 생성 후 세부 진단이 열립니다.'],
+    };
+  }
+
+  if (state.status === 'error') {
+    return {
+      tone: 'error',
+      title: '세부 진단을 아직 열 수 없음',
+      body: `오류: ${state.errorMessage || '알 수 없는 오류'}`,
+      items: ['왼쪽 입력을 조금 더 구체적으로 조정하세요.', '다시 요약 생성 후 세부 진단을 열어 보세요.'],
+    };
+  }
+
+  return {
+    tone: 'idle',
+    title: '세부 진단은 결과 생성 후 열립니다',
+    body: '왼쪽에서 요약을 먼저 생성하면, 여기에서 상위 경고와 세부 작업판을 자세히 확인할 수 있습니다.',
+    items: ['먼저 요구를 입력하고 요약 생성', '생성 후 상위 경고와 세부 작업판 확인'],
+  };
+}
+function getGuideStatusLabel(status) {
+  if (status === 'success') return '추천 준비됨';
+  if (status === 'loading') return '추천 생성 중';
+  if (status === 'error') return '추천 확인 필요';
+  return '추천 전';
+}
+
+function getValidationSeverityLabel(severity) {
+  if (severity === 'high') return '검토 필요 높음';
+  if (severity === 'medium') return '검토 필요 보통';
+  return '검토 필요 낮음';
 }
 
 const QUICK_MODE_STEPS = [
@@ -127,6 +159,11 @@ export default function ExperiencedWorkspace({
 }) {
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [selectedImplementationStack, setSelectedImplementationStack] = useState(null);
+  const providerLabel = derived.providerOptions.find((provider) => provider.id === state.apiProvider)?.label || state.apiProvider;
+  const modelLabel = state.isModelOptionsLoading
+    ? '불러오는 중'
+    : (state.selectedModel || state.modelOptions[0] || state.activeModel || '선택 안 됨');
+  const guideStatusLabel = getGuideStatusLabel(state.hybridStackGuideStatus);
 
   useEffect(() => {
     setIsDiagnosticsOpen(!compactMode);
@@ -174,12 +211,12 @@ export default function ExperiencedWorkspace({
             <p>오늘 바로 돌릴 결과와 핵심 경고만 먼저 확인하고, 세부 진단은 필요할 때만 여는 작업 방식입니다.</p>
           </div>
           <div className="signal-pills">
-            <span className="pill">task workbench: ON</span>
-            <span className="pill">top issues only</span>
-            <span className="pill">flow: run -&gt; check -&gt; expand</span>
+            <span className="pill">실행 우선</span>
+            <span className="pill">상위 경고만 먼저</span>
+            <span className="pill">순서: 실행 -&gt; 확인 -&gt; 확장</span>
           </div>
           <p className="small-muted persona-mode-note">
-            입문자에서 구조가 잡혔다면, 이제는 핵심 경고와 실행 순서만 빠르게 확인하는 단계입니다.
+            이 모드는 입문자와 다르게, 구조 설명보다 실행 순서와 핵심 경고를 먼저 확인하는 작업 방식입니다.
           </p>
         </section>
       )}
@@ -191,38 +228,13 @@ export default function ExperiencedWorkspace({
             <p>입력과 실행을 먼저 끝내고, 세부 검토는 정말 필요할 때만 확장합니다.</p>
           </div>
 
-          <div className="control-grid">
-            <div className="form-group">
-              <label htmlFor="experienced-provider">프로바이더</label>
-              <select
-                id="experienced-provider"
-                value={state.apiProvider}
-                onChange={(event) => actions.setApiProvider(event.target.value)}
-                disabled={state.status === 'processing'}
-              >
-                {derived.providerOptions.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="experienced-model">모델</label>
-              <select
-                id="experienced-model"
-                value={state.selectedModel}
-                onChange={(event) => actions.setSelectedModel(event.target.value)}
-                disabled={state.status === 'processing' || state.isModelOptionsLoading || state.modelOptions.length === 0}
-              >
-                {state.modelOptions.length === 0 && <option value="">모델 없음</option>}
-                {state.modelOptions.map((model) => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </div>
+          <div className="signal-pills">
+            <span className="pill">프로바이더: {providerLabel}</span>
+            <span className="pill">모델: {modelLabel}</span>
           </div>
+          <p className="small-muted">
+            프로바이더와 모델은 상단 헤더나 설정에서 바꾸고, 이 화면에서는 실행 순서에만 집중합니다.
+          </p>
 
           <div className="checkbox-row">
             <input
@@ -264,14 +276,19 @@ export default function ExperiencedWorkspace({
               {state.status === 'processing' ? '요약 생성 중...' : '요약 생성'}
             </button>
             {showApiSettings && (
-              <button type="button" className="btn btn-ghost" onClick={() => actions.setIsSettingsOpen(true)}>
-                API 키 설정
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => actions.setIsSettingsOpen(true)}
+                disabled={state.status === 'processing'}
+              >
+                API / 모델 설정 열기
               </button>
             )}
           </div>
 
           <p className="small-muted experienced-footer-note">
-            모델: {state.activeModel} | 하이브리드 스택: {state.hybridStackGuideStatus}
+            현재 모델: {state.activeModel} | 구현 가이드: {guideStatusLabel}
           </p>
         </section>
 
@@ -304,10 +321,10 @@ export default function ExperiencedWorkspace({
           {state.status === 'success' && (
             <div className="experienced-summary-stack">
               <div className="signal-pills">
-                <span className="pill">model: {state.activeModel}</span>
-                <span className="pill">hybrid: {state.hybridStackGuideStatus}</span>
-                {completionScore !== null && <span className="pill">score: {completionScore}</span>}
-                {derived.validationReport && <span className="pill">validation: {validationSeverity}</span>}
+                <span className="pill">현재 모델: {state.activeModel}</span>
+                <span className="pill">구현 가이드: {guideStatusLabel}</span>
+                {completionScore !== null && <span className="pill">완성도: {completionScore}</span>}
+                {derived.validationReport && <span className="pill">검토 상태: {getValidationSeverityLabel(validationSeverity)}</span>}
               </div>
 
               <section className="experienced-summary-card experienced-priority-card">
@@ -335,8 +352,8 @@ export default function ExperiencedWorkspace({
                     현재 결과의 누락 항목만 짧게 채우고, 반영 후 다시 직접 생성합니다.
                   </p>
                   <div className="stack-actions">
-                    <span className="pill">turn: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
-                    <span className="pill">questions: {validationQuestions.length}</span>
+                    <span className="pill">보완 차수: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
+                    <span className="pill">질문 수: {validationQuestions.length}</span>
                   </div>
                   <div className="form-group">
                     {validationQuestions.map((question) => (
@@ -359,7 +376,7 @@ export default function ExperiencedWorkspace({
                       onClick={actions.handleApplyClarifications}
                       disabled={state.status === 'processing' || !canSubmitClarification}
                     >
-                      입력 매트릭스 반영
+                      입력에 반영
                     </button>
                   </div>
                 </section>
@@ -416,7 +433,7 @@ export default function ExperiencedWorkspace({
               className="btn btn-secondary"
               onClick={() => setIsDiagnosticsOpen((prev) => !prev)}
             >
-              {isDiagnosticsOpen ? '세부 진단 닫기' : '세부 진단은 필요할 때만 열기'}
+              {isDiagnosticsOpen ? '세부 진단 닫기' : '세부 진단 열기'}
             </button>
             {state.status === 'success' && (
               <button
@@ -424,7 +441,7 @@ export default function ExperiencedWorkspace({
                 className="btn btn-ghost"
                 onClick={actions.handleRefreshHybrid}
               >
-                하이브리드 가이드 새로고침
+                구현 가이드 다시 보기
               </button>
             )}
           </div>
@@ -447,3 +464,5 @@ export default function ExperiencedWorkspace({
     </section>
   );
 }
+
+

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ApiKeyModal from './components/ApiKeyModal';
 import BeginnerWorkspace from './components/BeginnerWorkspace';
 import ExperiencedWorkspace from './components/ExperiencedWorkspace';
@@ -94,7 +94,7 @@ export default function App() {
   const advancedWorkspaceVariant = activePersonaConfig.advancedWorkspaceVariant;
   const activePersonaCapabilities = activePersonaConfig.capabilities;
   const headerCopy = getHeaderCopy({ activePersona, isBeginnerWorkspace, requiresApiKey });
-  const modelStatusLabel = state.selectedModel || (state.isModelOptionsLoading ? 'Loading' : (state.activeModel || 'Unset'));
+  const modelStatusLabel = state.selectedModel || (state.isModelOptionsLoading ? '불러오는 중' : (state.activeModel || '선택 안 됨'));
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -145,7 +145,7 @@ export default function App() {
           >
             모델: {modelStatusLabel}
           </button>
-          <span className="status-chip muted">상태 복원 활성화</span>
+
           {activePersona && (
             <button
               type="button"
