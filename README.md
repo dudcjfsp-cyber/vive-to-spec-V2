@@ -80,8 +80,12 @@ Build check:
 npm run build
 ```
 
-Managed deployment prep:
-- Render blueprint: `render.yaml`
+Deployment notes:
+- GitHub Pages build stays on the repository subpath base.
+- Vercel build uses the root base automatically.
+- If you want to force the target, use `VITE_DEPLOY_TARGET=pages` or `VITE_DEPLOY_TARGET=vercel`.
+- Vercel functions: `api/*.js`
+- Vercel config: `vercel.json`
 - Deployment runbook: `docs/managed-deploy.md`
 
 ## App 분리 원칙
@@ -89,5 +93,3 @@ Managed deployment prep:
 - `ui/app/hooks/useAppController.js`: 상태/유즈케이스 오케스트레이션
 - `ui/app/services/sessionStore.js`: 스토리지/TTL 정책
 - `ui/app/services/specStateShadow.js`: SpecState 기록 경계
-
-
