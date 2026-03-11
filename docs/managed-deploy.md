@@ -6,7 +6,7 @@ This document prepares the managed backend so that deployment day only requires 
 - The managed API local dev server lives at `server/managedApiServer.js`.
 - The Vercel production functions live under `api/`.
 - Health check endpoint: `/api/health`
-- Vercel project config file: `vercel.json`
+- Vercel route configuration is currently kept inline in `api/*.js` via route-local `maxDuration` exports.
 
 ## Deployment Split
 - GitHub Pages and Vercel should be treated as separate deployment targets.
@@ -77,3 +77,4 @@ After the session:
 - Serverless execution time is bounded, so long-running model calls must fit within the configured duration.
 - Cold starts are still possible, though generally shorter than a sleeping free Render web service.
 - This setup is for short education/demo usage, not long-term public production.
+
