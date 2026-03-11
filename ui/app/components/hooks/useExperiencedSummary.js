@@ -1,29 +1,41 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   buildContextOutputs,
-  buildLogicMap,
   buildPreferredStackRequestLine,
-  buildProblemFrame,
 } from '../result-panel/builders.js';
 import { isObject, toStringArray, toText } from '../result-panel/utils';
 
+function getGuideStatusLabel(status) {
+  if (status === 'success') return '추천 준비됨';
+  if (status === 'loading') return '추천 생성 중';
+  if (status === 'error') return '추천 확인 필요';
+  return '추천 전';
+}
+
 export function useExperiencedSummary({
-  derived,
+  summaryModel,
   selectedImplementationStack,
 }) {
   const [promptCopyStatus, setPromptCopyStatus] = useState('');
+  const safeSummaryModel = isObject(summaryModel) ? summaryModel : {};
+  const actions = isObject(safeSummaryModel.actions) ? safeSummaryModel.actions : {};
+  const delivery = isObject(safeSummaryModel.delivery) ? safeSummaryModel.delivery : {};
+  const promptContext = isObject(safeSummaryModel.promptContext) ? safeSummaryModel.promptContext : {};
+  const completion = isObject(safeSummaryModel.completion) ? safeSummaryModel.completion : {};
+  const validation = isObject(safeSummaryModel.validation) ? safeSummaryModel.validation : {};
+  const guide = isObject(safeSummaryModel.guide) ? safeSummaryModel.guide : {};
+  const clarify = isObject(safeSummaryModel.clarify) ? safeSummaryModel.clarify : {};
 
   const todayActions = useMemo(
-    () => toStringArray(derived.standardOutput?.오늘_할_일_3개).slice(0, 3),
-    [derived.standardOutput],
+    () => toStringArray(actions.today).slice(0, 3),
+    [actions.today],
   );
   const topWarnings = useMemo(
-    () => toStringArray(derived.standardOutput?.완성도_진단?.누락_경고).slice(0, 2),
-    [derived.standardOutput],
+    () => toStringArray(actions.topWarnings).slice(0, 2),
+    [actions.topWarnings],
   );
   const quickRequest = useMemo(() => {
-    const standardRequest = toText(derived.standardOutput?.수정요청_변환?.표준_요청);
-    const baseRequest = standardRequest || toText(derived.standardOutput?.수정요청_변환?.짧은_요청, derived.masterPrompt);
+    const baseRequest = toText(delivery.quickRequestBase);
     const stackRequestLine = buildPreferredStackRequestLine(selectedImplementationStack);
 
     if (stackRequestLine && baseRequest) {
@@ -31,20 +43,22 @@ export function useExperiencedSummary({
     }
 
     return stackRequestLine || baseRequest;
-  }, [derived.masterPrompt, derived.standardOutput, selectedImplementationStack]);
-  const quickAiPrompt = useMemo(() => {
-    const safeSpec = isObject(derived.standardOutput) ? derived.standardOutput : {};
-    const hypothesis = buildProblemFrame(safeSpec);
-    const logicMap = buildLogicMap(safeSpec, hypothesis);
-    return buildContextOutputs({
-      devSpec: derived.devSpec,
-      nondevSpec: derived.nondevSpec,
-      masterPrompt: derived.masterPrompt,
-      hypothesis,
-      logicMap,
-      preferredStack: selectedImplementationStack,
-    }).aiCoding;
-  }, [derived.devSpec, derived.masterPrompt, derived.nondevSpec, derived.standardOutput, selectedImplementationStack]);
+  }, [delivery.quickRequestBase, selectedImplementationStack]);
+  const quickAiPrompt = useMemo(() => buildContextOutputs({
+    devSpec: toText(promptContext.devSpec),
+    nondevSpec: toText(promptContext.nondevSpec),
+    masterPrompt: toText(promptContext.masterPrompt),
+    hypothesis: isObject(promptContext.hypothesis) ? promptContext.hypothesis : {},
+    logicMap: isObject(promptContext.logicMap) ? promptContext.logicMap : {},
+    preferredStack: selectedImplementationStack,
+  }).aiCoding, [
+    promptContext.devSpec,
+    promptContext.hypothesis,
+    promptContext.logicMap,
+    promptContext.masterPrompt,
+    promptContext.nondevSpec,
+    selectedImplementationStack,
+  ]);
 
   const handleCopyExperiencedPrompt = useCallback(async () => {
     if (!quickAiPrompt) {
@@ -65,15 +79,21 @@ export function useExperiencedSummary({
     }
   }, [quickAiPrompt]);
 
-  const completionScore = Number.isFinite(Number(derived.standardOutput?.완성도_진단?.점수_0_100))
-    ? Number(derived.standardOutput?.완성도_진단?.점수_0_100)
+  const completionScore = Number.isFinite(Number(completion.score))
+    ? Number(completion.score)
     : null;
-  const validationSeverity = toText(derived.validationReport?.severity, 'low');
+  const validationSeverity = toText(validation.severity, 'low');
+  const hasValidationReport = validation.hasReport === true;
+  const guideData = isObject(guide.data) ? guide.data : null;
+  const guideStatus = toText(guide.status, 'idle');
+  const guideStatusLabel = getGuideStatusLabel(guideStatus);
   const validationQuestions = useMemo(
-    () => toStringArray(derived.clarifyLoop?.questions),
-    [derived.clarifyLoop],
+    () => toStringArray(clarify.questions),
+    [clarify.questions],
   );
-  const canSubmitClarification = derived.clarifyLoop?.canSubmit === true;
+  const clarifyAnswers = isObject(clarify.answers) ? clarify.answers : {};
+  const clarifyLoopTurn = Number(clarify.loopTurn || 0);
+  const canSubmitClarification = clarify.canSubmit === true;
 
   return {
     todayActions,
@@ -84,7 +104,13 @@ export function useExperiencedSummary({
     handleCopyExperiencedPrompt,
     completionScore,
     validationSeverity,
+    hasValidationReport,
+    guideData,
+    guideStatus,
+    guideStatusLabel,
     validationQuestions,
+    clarifyAnswers,
+    clarifyLoopTurn,
     canSubmitClarification,
   };
 }

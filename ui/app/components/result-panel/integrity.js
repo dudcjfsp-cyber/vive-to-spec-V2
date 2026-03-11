@@ -124,7 +124,7 @@ export function getGateStatusFromWarnings(unresolvedWarnings) {
 }
 
 export function buildIntegritySignals({
-  standardOutput,
+  integritySource,
   permissionGuardEnabled,
   hypothesisWhat,
   logicText,
@@ -132,8 +132,8 @@ export function buildIntegritySignals({
   l1Intelligence,
   l2Intelligence,
 }) {
-  const safeSpec = isObject(standardOutput) ? standardOutput : {};
-  const permissionRules = toObjectArray(safeSpec.권한_규칙);
+  const safeIntegritySource = isObject(integritySource) ? integritySource : {};
+  const permissionRules = toObjectArray(safeIntegritySource.permissionRules);
   const deleteRoles = permissionRules
     .filter((rule) => Boolean(rule.삭제))
     .map((rule) => toText(rule.역할, '역할 미정'));
@@ -163,16 +163,15 @@ export function buildIntegritySignals({
 }
 
 export function buildWarnings({
-  standardOutput,
+  integritySource,
   hypothesisConfirmed,
   changedAxis,
   l1Intelligence,
   l2Intelligence,
   integritySignals,
 }) {
-  const safeSpec = isObject(standardOutput) ? standardOutput : {};
-  const completeness = isObject(safeSpec.완성도_진단) ? safeSpec.완성도_진단 : {};
-  const schemaWarnings = toStringArray(completeness.누락_경고);
+  const safeIntegritySource = isObject(integritySource) ? integritySource : {};
+  const schemaWarnings = toStringArray(safeIntegritySource.schemaWarnings);
 
   const items = schemaWarnings.map((text, idx) => {
     const riskProfile = inferRiskProfile(text);

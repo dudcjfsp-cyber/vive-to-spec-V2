@@ -21,12 +21,13 @@ import {
 
 export function useResultPanelDerived({
   personaCapabilities,
-  promptPolicyMeta,
-  validationReport,
-  clarifyLoop,
+  promptPolicy,
+  validation,
+  manualLoop,
   onSyncWarningToClarify,
-  hybridStackGuide,
-  standardOutput,
+  hybridGuideFrameCount,
+  delivery,
+  integritySource,
   contextOutputs,
   selectedImplementationStack,
   vibe,
@@ -40,6 +41,11 @@ export function useResultPanelDerived({
   resolvedWarningIds,
 }) {
   const safeCapabilities = isObject(personaCapabilities) ? personaCapabilities : {};
+  const safePromptPolicy = isObject(promptPolicy) ? promptPolicy : {};
+  const safeValidation = isObject(validation) ? validation : {};
+  const safeManualLoop = isObject(manualLoop) ? manualLoop : {};
+  const safeDelivery = isObject(delivery) ? delivery : {};
+
   const shouldShowAdvancedPromptPolicyMeta = safeCapabilities.showAdvancedPromptPolicyMeta === true;
   const shouldShowLayerPanels = safeCapabilities.showLayerPanels !== false;
   const shouldShowCtaHistory = safeCapabilities.showCtaHistory !== false;
@@ -55,53 +61,49 @@ export function useResultPanelDerived({
   const shouldCollapseSupplementaryPanels = shouldShowCompactDeliveryPanel;
 
   const promptSections = useMemo(
-    () => toStringArray(promptPolicyMeta?.prompt_sections),
-    [promptPolicyMeta],
+    () => toStringArray(safePromptPolicy.sections),
+    [safePromptPolicy],
   );
-  const promptPolicyMode = toText(promptPolicyMeta?.prompt_policy_mode, 'baseline');
-  const promptExperimentId = toText(promptPolicyMeta?.prompt_experiment_id, '-');
-  const promptExampleMode = toText(promptPolicyMeta?.example_mode, 'none');
-  const positiveRewriteCount = Number.isFinite(Number(promptPolicyMeta?.positive_rewrite_count))
-    ? Number(promptPolicyMeta?.positive_rewrite_count)
+  const promptPolicyMode = toText(safePromptPolicy.mode, 'baseline');
+  const promptExperimentId = toText(safePromptPolicy.experimentId, '-');
+  const promptExampleMode = toText(safePromptPolicy.exampleMode, 'none');
+  const positiveRewriteCount = Number.isFinite(Number(safePromptPolicy.positiveRewriteCount))
+    ? Number(safePromptPolicy.positiveRewriteCount)
     : 0;
 
-  const validationSeverity = toText(validationReport?.severity, 'low');
+  const validationSeverity = toText(safeValidation.severity, 'low');
   const validationWarnings = useMemo(
-    () => toStringArray(validationReport?.warnings).slice(0, 3),
-    [validationReport],
+    () => toStringArray(safeValidation.warnings).slice(0, 3),
+    [safeValidation],
   );
   const suggestedQuestions = useMemo(
-    () => toStringArray(validationReport?.suggested_questions).slice(0, 3),
-    [validationReport],
+    () => toStringArray(safeValidation.suggestedQuestions).slice(0, 3),
+    [safeValidation],
   );
   const manualLoopQuestions = useMemo(
-    () => toStringArray(clarifyLoop?.questions),
-    [clarifyLoop],
+    () => toStringArray(safeManualLoop.questions),
+    [safeManualLoop],
   );
   const manualLoopQuestionCount = manualLoopQuestions.length;
-  const manualLoopAnswers = isObject(clarifyLoop?.answers) ? clarifyLoop.answers : {};
-  const canSubmitManualLoop = clarifyLoop?.canSubmit === true;
+  const manualLoopAnswers = isObject(safeManualLoop.answers) ? safeManualLoop.answers : {};
+  const canSubmitManualLoop = safeManualLoop.canSubmit === true;
   const blockingIssues = useMemo(
-    () => (Array.isArray(validationReport?.blocking_issues) ? validationReport.blocking_issues : []),
-    [validationReport],
+    () => (Array.isArray(safeValidation.blockingIssues) ? safeValidation.blockingIssues : []),
+    [safeValidation],
   );
   const canSyncToManualLoop = typeof onSyncWarningToClarify === 'function';
-
-  const hybridGuideFrameCount = useMemo(
-    () => (Array.isArray(hybridStackGuide?.frames)
-      ? hybridStackGuide.frames.filter((item) => isObject(item)).length
-      : 0),
-    [hybridStackGuide],
-  );
+  const safeHybridGuideFrameCount = Number.isFinite(Number(hybridGuideFrameCount))
+    ? Number(hybridGuideFrameCount)
+    : 0;
 
   const todayActions = useMemo(
-    () => toStringArray(standardOutput?.오늘_할_일_3개),
-    [standardOutput],
+    () => toStringArray(safeDelivery.todayActions),
+    [safeDelivery],
   );
 
   const compactRequest = useMemo(() => {
-    const standardRequest = toText(standardOutput?.수정요청_변환?.표준_요청);
-    const baseRequest = standardRequest || toText(standardOutput?.수정요청_변환?.짧은_요청, contextOutputs.aiCoding);
+    const standardRequest = toText(safeDelivery.standardRequest);
+    const baseRequest = standardRequest || toText(safeDelivery.shortRequest, contextOutputs.aiCoding);
     const stackRequestLine = buildPreferredStackRequestLine(selectedImplementationStack);
 
     if (stackRequestLine && baseRequest) {
@@ -109,7 +111,7 @@ export function useResultPanelDerived({
     }
 
     return stackRequestLine || baseRequest;
-  }, [contextOutputs.aiCoding, selectedImplementationStack, standardOutput]);
+  }, [contextOutputs.aiCoding, safeDelivery, selectedImplementationStack]);
 
   const l1Intelligence = useMemo(
     () => buildL1Intelligence({ vibeText: vibe, hypothesis }),
@@ -152,7 +154,7 @@ export function useResultPanelDerived({
     [logicMap, changedAxis],
   );
   const integritySignals = useMemo(() => buildIntegritySignals({
-    standardOutput,
+    integritySource,
     permissionGuardEnabled,
     hypothesisWhat: hypothesis.what,
     logicText: logicMap.text,
@@ -160,7 +162,7 @@ export function useResultPanelDerived({
     l1Intelligence,
     l2Intelligence,
   }), [
-    standardOutput,
+    integritySource,
     permissionGuardEnabled,
     hypothesis.what,
     logicMap.text,
@@ -170,14 +172,14 @@ export function useResultPanelDerived({
   ]);
 
   const warnings = useMemo(() => buildWarnings({
-    standardOutput,
+    integritySource,
     hypothesisConfirmed,
     changedAxis,
     l1Intelligence,
     l2Intelligence,
     integritySignals,
   }), [
-    standardOutput,
+    integritySource,
     hypothesisConfirmed,
     changedAxis,
     l1Intelligence,
@@ -229,7 +231,7 @@ export function useResultPanelDerived({
     canSubmitManualLoop,
     blockingIssues,
     canSyncToManualLoop,
-    hybridGuideFrameCount,
+    hybridGuideFrameCount: safeHybridGuideFrameCount,
     todayActions,
     compactRequest,
     l1Intelligence,
@@ -249,5 +251,3 @@ export function useResultPanelDerived({
     gateStatus,
   };
 }
-
-

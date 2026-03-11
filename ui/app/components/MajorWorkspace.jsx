@@ -3,33 +3,10 @@ import AdvancedResultPane from './AdvancedResultPane.jsx';
 import ControlPanel from './ControlPanel';
 import WorkspaceStatusCard from './WorkspaceStatusCard.jsx';
 import { buildAdvancedResultViewModel } from './result-panel/buildAdvancedResultViewModel.js';
+import { buildMajorReviewModel } from './major-workspace/buildMajorReviewModel.js';
 
 function toText(value, fallback = '') {
   return typeof value === 'string' ? value.trim() : fallback;
-}
-
-function toStringArray(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => toText(item))
-    .filter(Boolean);
-}
-
-function toObjectArray(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item) => item && typeof item === 'object');
-}
-
-function formatBlockingIssue(issue, index) {
-  if (!issue || typeof issue !== 'object') return `차단 이슈 ${index + 1}`;
-  return toText(issue.message, toText(issue.id, `차단 이슈 ${index + 1}`));
-}
-
-function isRequiredField(value) {
-  if (value === true) return true;
-  const text = toText(value).toLowerCase();
-  if (!text) return false;
-  return ['required', 'yes', 'true', 'y', '필수'].some((token) => text.includes(token));
 }
 
 function getValidationSeverityLabel(severity) {
@@ -37,13 +14,6 @@ function getValidationSeverityLabel(severity) {
   if (normalized === 'high') return '높음';
   if (normalized === 'medium') return '보통';
   return '낮음';
-}
-
-function summarizeContractField(field) {
-  const name = toText(field?.이름, '필드');
-  const type = toText(field?.타입, 'string');
-  const requiredLabel = isRequiredField(field?.필수) ? '필수' : '선택';
-  return `${name} (${type}, ${requiredLabel})`;
 }
 
 const REVIEW_STEPS = [
@@ -114,6 +84,7 @@ function buildMajorResultPanelStatus(state) {
     items: ['먼저 요구를 입력하고 변환 시작', '생성 후 차단 이슈와 영향 범위 확인'],
   };
 }
+
 export default function MajorWorkspace({
   state,
   derived,
@@ -121,64 +92,10 @@ export default function MajorWorkspace({
   personaCapabilities,
   showApiSettings = true,
 }) {
-  const schemaWarnings = useMemo(
-    () => toStringArray(derived.standardOutput?.완성도_진단?.누락_경고).slice(0, 3),
-    [derived.standardOutput],
+  const reviewModel = useMemo(
+    () => buildMajorReviewModel({ state, derived }),
+    [state.activeModel, derived.standardOutput, derived.validationReport],
   );
-  const inputFields = useMemo(
-    () => toObjectArray(derived.standardOutput?.입력_데이터_필드).slice(0, 5),
-    [derived.standardOutput],
-  );
-  const requiredFieldCount = useMemo(
-    () => inputFields.filter((field) => isRequiredField(field?.필수)).length,
-    [inputFields],
-  );
-  const validationSeverity = toText(derived.validationReport?.severity, 'low');
-  const blockingIssues = useMemo(() => {
-    if (!Array.isArray(derived.validationReport?.blocking_issues)) return [];
-    return derived.validationReport.blocking_issues
-      .map((issue, index) => formatBlockingIssue(issue, index))
-      .filter(Boolean)
-      .slice(0, 3);
-  }, [derived.validationReport]);
-  const impactPreview = useMemo(() => ({
-    screens: toStringArray(derived.standardOutput?.변경_영향도?.화면).slice(0, 3),
-    permissions: toStringArray(derived.standardOutput?.변경_영향도?.권한).slice(0, 3),
-    tests: toStringArray(derived.standardOutput?.변경_영향도?.테스트).slice(0, 3),
-  }), [derived.standardOutput]);
-  const exceptionPolicies = useMemo(() => [
-    '검증 실패: 입력 필드 단위로 즉시 오류를 반환하고 재시도는 수행하지 않습니다.',
-    '외부 API 실패/타임아웃: 1회 재시도 후 실패 원인을 로그와 사용자 메시지로 분리합니다.',
-    '권한 충돌: 삭제 작업은 승인 단계 이후에만 실행하도록 보호 규칙을 강제합니다.',
-  ], []);
-  const reliabilityItems = useMemo(() => {
-    const prioritized = [
-      ...blockingIssues.map((item) => `차단: ${item}`),
-      ...schemaWarnings.map((item) => `경고: ${item}`),
-    ];
-    if (prioritized.length > 0) return prioritized;
-    return ['현재 즉시 차단 이슈는 없습니다.', '지금 보이는 스키마 경고도 낮은 수준입니다.'];
-  }, [blockingIssues, schemaWarnings]);
-  const reliabilitySummaryItems = reliabilityItems.slice(0, 2);
-  const reliabilityExtraItems = [...reliabilityItems.slice(2), ...exceptionPolicies];
-  const contractFieldItems = useMemo(() => {
-    if (inputFields.length === 0) return ['입력 데이터 필드가 아직 정의되지 않았습니다.'];
-    return inputFields.map((field) => summarizeContractField(field));
-  }, [inputFields]);
-  const contractSummaryItems = contractFieldItems.slice(0, 3);
-  const contractExtraItems = contractFieldItems.slice(3);
-  const impactItems = useMemo(() => {
-    const combined = [
-      ...impactPreview.screens.map((item) => `화면: ${item}`),
-      ...impactPreview.permissions.map((item) => `권한: ${item}`),
-      ...impactPreview.tests.map((item) => `테스트: ${item}`),
-    ];
-    if (combined.length > 0) return combined;
-    return ['아직 화면 영향 정보가 없습니다.', '권한과 테스트 영향도 아직 정리되지 않았습니다.'];
-  }, [impactPreview.permissions, impactPreview.screens, impactPreview.tests]);
-  const impactSummaryItems = impactItems.slice(0, 3);
-  const impactExtraItems = impactItems.slice(3);
-  const activeModelLabel = toText(state.activeModel, '확인 중');
   const statusCard = buildMajorStatus(state);
 
   const reviewFlow = (
@@ -208,18 +125,18 @@ export default function MajorWorkspace({
         <article className="major-readiness-card">
           <h3>신뢰성</h3>
           <div className="signal-pills">
-            <span className="pill">심각도: {getValidationSeverityLabel(validationSeverity)}</span>
-            <span className="pill">경고: {schemaWarnings.length}</span>
-            <span className="pill">차단: {blockingIssues.length}</span>
+            <span className="pill">심각도: {getValidationSeverityLabel(reviewModel.validationSeverity)}</span>
+            <span className="pill">경고: {reviewModel.reliability.warningCount}</span>
+            <span className="pill">차단: {reviewModel.reliability.blockingCount}</span>
           </div>
           <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {reliabilitySummaryItems.map((item, index) => <li key={`major-reliability-summary-${index}`}>{item}</li>)}
+            {reviewModel.reliability.summaryItems.map((item, index) => <li key={`major-reliability-summary-${index}`}>{item}</li>)}
           </ul>
           <details className="major-readiness-details">
-            <summary>예외 기준과 추가 이슈 {reliabilityExtraItems.length}개 보기</summary>
+            <summary>예외 기준과 추가 이슈 {reviewModel.reliability.extraItems.length}개 보기</summary>
             <ul className="major-readiness-list compact">
-              {reliabilityExtraItems.map((item, index) => <li key={`major-reliability-extra-${index}`}>{item}</li>)}
+              {reviewModel.reliability.extraItems.map((item, index) => <li key={`major-reliability-extra-${index}`}>{item}</li>)}
             </ul>
           </details>
         </article>
@@ -227,19 +144,19 @@ export default function MajorWorkspace({
         <article className="major-readiness-card">
           <h3>계약 안정성</h3>
           <div className="signal-pills">
-            <span className="pill">스키마 필드: {inputFields.length}</span>
-            <span className="pill">필수: {requiredFieldCount}</span>
-            <span className="pill">모델: {activeModelLabel}</span>
+            <span className="pill">스키마 필드: {reviewModel.contract.fieldCount}</span>
+            <span className="pill">필수: {reviewModel.contract.requiredFieldCount}</span>
+            <span className="pill">모델: {reviewModel.contract.modelLabel}</span>
           </div>
           <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {contractSummaryItems.map((item, index) => <li key={`major-contract-summary-${index}`}>{item}</li>)}
+            {reviewModel.contract.summaryItems.map((item, index) => <li key={`major-contract-summary-${index}`}>{item}</li>)}
           </ul>
-          {contractExtraItems.length > 0 && (
+          {reviewModel.contract.extraItems.length > 0 && (
             <details className="major-readiness-details">
-              <summary>나머지 필드 {contractExtraItems.length}개 보기</summary>
+              <summary>나머지 필드 {reviewModel.contract.extraItems.length}개 보기</summary>
               <ul className="major-readiness-list compact">
-                {contractExtraItems.map((item, index) => <li key={`major-contract-extra-${index}`}>{item}</li>)}
+                {reviewModel.contract.extraItems.map((item, index) => <li key={`major-contract-extra-${index}`}>{item}</li>)}
               </ul>
             </details>
           )}
@@ -248,19 +165,19 @@ export default function MajorWorkspace({
         <article className="major-readiness-card">
           <h3>변경 영향</h3>
           <div className="signal-pills">
-            <span className="pill">화면: {impactPreview.screens.length}</span>
-            <span className="pill">권한: {impactPreview.permissions.length}</span>
-            <span className="pill">테스트: {impactPreview.tests.length}</span>
+            <span className="pill">화면: {reviewModel.impact.screenCount}</span>
+            <span className="pill">권한: {reviewModel.impact.permissionCount}</span>
+            <span className="pill">테스트: {reviewModel.impact.testCount}</span>
           </div>
           <p className="small-muted">먼저 볼 것</p>
           <ul className="major-readiness-list">
-            {impactSummaryItems.map((item, index) => <li key={`major-impact-summary-${index}`}>{item}</li>)}
+            {reviewModel.impact.summaryItems.map((item, index) => <li key={`major-impact-summary-${index}`}>{item}</li>)}
           </ul>
-          {impactExtraItems.length > 0 && (
+          {reviewModel.impact.extraItems.length > 0 && (
             <details className="major-readiness-details">
-              <summary>추가 영향 {impactExtraItems.length}개 보기</summary>
+              <summary>추가 영향 {reviewModel.impact.extraItems.length}개 보기</summary>
               <ul className="major-readiness-list compact">
-                {impactExtraItems.map((item, index) => <li key={`major-impact-extra-${index}`}>{item}</li>)}
+                {reviewModel.impact.extraItems.map((item, index) => <li key={`major-impact-extra-${index}`}>{item}</li>)}
               </ul>
             </details>
           )}
@@ -335,5 +252,3 @@ export default function MajorWorkspace({
     </section>
   );
 }
-
-

@@ -17,8 +17,12 @@ test('MajorWorkspace mode framing uses the plain-language review sequence', () =
   assert.doesNotMatch(source, /한 단계 올라가/);
 });
 
-test('MajorWorkspace review dashboard defaults to first-look summaries before details', () => {
-  assert.match(source, /먼저 볼 것/);
-  assert.match(source, /<details className="major-readiness-details">/);
-  assert.match(source, /예외 기준과 추가 이슈/);
+test('MajorWorkspace review dashboard uses the normalized review model builder', () => {
+  assert.match(source, /const reviewModel = useMemo\(/);
+  assert.match(source, /buildMajorReviewModel\(\{ state, derived \}\)/);
+  assert.match(source, /reviewModel\.reliability\.summaryItems/);
+  assert.match(source, /reviewModel\.contract\.summaryItems/);
+  assert.match(source, /reviewModel\.impact\.summaryItems/);
+  assert.doesNotMatch(source, /derived\.standardOutput\?/);
+  assert.doesNotMatch(source, /derived\.validationReport\?/);
 });

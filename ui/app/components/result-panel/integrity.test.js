@@ -105,8 +105,8 @@ test('buildWarningSummary returns aggregate counts for compact integrity views',
 
 test('buildIntegritySignals detects data, permission, and coherence failures', () => {
   const result = buildIntegritySignals({
-    standardOutput: {
-      권한_규칙: [
+    integritySource: {
+      permissionRules: [
         { 역할: '상담원', 삭제: true },
       ],
     },
@@ -130,8 +130,8 @@ test('buildIntegritySignals detects data, permission, and coherence failures', (
 
 test('buildIntegritySignals does not flag privileged manager delete roles', () => {
   const result = buildIntegritySignals({
-    standardOutput: {
-      권한_규칙: [
+    integritySource: {
+      permissionRules: [
         { 역할: '관리자', 삭제: true },
         { 역할: '매니저', 삭제: true },
       ],
@@ -152,10 +152,8 @@ test('buildIntegritySignals does not flag privileged manager delete roles', () =
 
 test('buildWarnings creates prioritized warning graph from integrity signals', () => {
   const warnings = buildWarnings({
-    standardOutput: {
-      완성도_진단: {
-        누락_경고: ['권한 검토 누락', '데이터 흐름 점검 필요'],
-      },
+    integritySource: {
+      schemaWarnings: ['권한 검토 누락', '데이터 흐름 점검 필요'],
     },
     hypothesisConfirmed: false,
     changedAxis: 'db',

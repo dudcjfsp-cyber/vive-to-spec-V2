@@ -61,13 +61,15 @@ export default function ResultPanel({ viewModel }) {
   const hybridStackGuideStatus = toText(guide.status, 'idle');
   const hybridStackGuide = guide.data;
   const vibe = toText(session.vibe);
-  const standardOutput = artifacts.standardOutput;
+  const workspaceSeed = isObject(viewModel?.workspaceSeed) ? viewModel.workspaceSeed : {};
+  const seededHypothesis = isObject(workspaceSeed.hypothesis) ? deepClone(workspaceSeed.hypothesis) : buildProblemFrame({});
+  const seededLogicMap = isObject(workspaceSeed.logicMap) ? deepClone(workspaceSeed.logicMap) : buildLogicMap({}, buildProblemFrame({}));
   const nondevSpec = toText(artifacts.nondevSpec);
   const devSpec = toText(artifacts.devSpec);
   const masterPrompt = toText(artifacts.masterPrompt);
-  const promptPolicyMeta = diagnostics.promptPolicyMeta;
-  const validationReport = diagnostics.validationReport;
-  const clarifyLoop = diagnostics.clarifyLoop;
+  const promptPolicy = isObject(diagnostics.promptPolicy) ? diagnostics.promptPolicy : {};
+  const validation = isObject(diagnostics.validation) ? diagnostics.validation : {};
+  const manualLoop = isObject(diagnostics.manualLoop) ? diagnostics.manualLoop : {};
   const clarifyApplyNotice = toText(diagnostics.clarifyApplyNotice);
   const personaCapabilities = display.personaCapabilities;
   const onRefreshHybrid = actionHandlers.onRefreshHybrid;
@@ -81,10 +83,10 @@ export default function ResultPanel({ viewModel }) {
 
   // 1) Core panel state (L1~L5 interaction state + derived artifacts)
   const [activeLayer, setActiveLayer] = useState('L1');
-  const [hypothesis, setHypothesis] = useState(buildProblemFrame({}));
+  const [hypothesis, setHypothesis] = useState(seededHypothesis);
   const [hypothesisConfirmed, setHypothesisConfirmed] = useState(false);
   const [hypothesisConfirmedStamp, setHypothesisConfirmedStamp] = useState('');
-  const [logicMap, setLogicMap] = useState(buildLogicMap({}, buildProblemFrame({})));
+  const [logicMap, setLogicMap] = useState(seededLogicMap);
   const [changedAxis, setChangedAxis] = useState('');
   const [syncHint, setSyncHint] = useState('');
   const [permissionGuardEnabled, setPermissionGuardEnabled] = useState(false);
@@ -100,8 +102,8 @@ export default function ResultPanel({ viewModel }) {
       devSpec: '',
       nondevSpec: '',
       masterPrompt: '',
-      hypothesis: buildProblemFrame({}),
-      logicMap: buildLogicMap({}, buildProblemFrame({})),
+      hypothesis: seededHypothesis,
+      logicMap: seededLogicMap,
       preferredStack: null,
     }),
   );
@@ -171,12 +173,13 @@ export default function ResultPanel({ viewModel }) {
     gateStatus,
   } = useResultPanelDerived({
     personaCapabilities,
-    promptPolicyMeta,
-    validationReport,
-    clarifyLoop,
+    promptPolicy,
+    validation,
+    manualLoop,
     onSyncWarningToClarify,
-    hybridStackGuide,
-    standardOutput,
+    hybridGuideFrameCount: guide.frameCount,
+    delivery: viewModel?.delivery,
+    integritySource: viewModel?.integritySource,
     contextOutputs,
     selectedImplementationStack,
     vibe,
@@ -275,9 +278,12 @@ export default function ResultPanel({ viewModel }) {
 
   // 3) Source payload hydration
   useEffect(() => {
-    const safeSpec = isObject(standardOutput) ? standardOutput : {};
-    const nextHypothesis = buildProblemFrame(safeSpec);
-    const nextLogicMap = buildLogicMap(safeSpec, nextHypothesis);
+    const nextHypothesis = isObject(workspaceSeed.hypothesis)
+      ? deepClone(workspaceSeed.hypothesis)
+      : buildProblemFrame({});
+    const nextLogicMap = isObject(workspaceSeed.logicMap)
+      ? deepClone(workspaceSeed.logicMap)
+      : buildLogicMap({}, nextHypothesis);
 
     setHypothesis(nextHypothesis);
     setHypothesisConfirmed(false);
@@ -309,7 +315,7 @@ export default function ResultPanel({ viewModel }) {
     nondevSpec,
     resetActionPackState,
     resetCtaHistory,
-    standardOutput,
+    workspaceSeed,
   ]);
 
   const clearL1FocusGuide = () => {
@@ -794,14 +800,14 @@ export default function ResultPanel({ viewModel }) {
         </section>
       )}
 
-      {shouldShowValidationMeta && validationReport && (
+      {shouldShowValidationMeta && validation.hasData && (
         <section className="panel result-meta-panel">
           <h2>검토 요약</h2>
           <div className="signal-pills">
             <span className="pill">검토 강도: {getValidationSeverityLabel(validationSeverity)}</span>
-            <span className="pill">차단 이슈: {Number(validationReport?.blocking_issue_count || 0)}</span>
-            <span className="pill">경고 수: {Number(validationReport?.warning_count || 0)}</span>
-            <span className="pill">바로 진행 가능: {validationReport?.can_auto_proceed ? '예' : '아니오'}</span>
+            <span className="pill">차단 이슈: {validation.blockingIssueCount}</span>
+            <span className="pill">경고 수: {validation.warningCount}</span>
+            <span className="pill">바로 진행 가능: {validation.canAutoProceed ? '예' : '아니오'}</span>
           </div>
           {validationWarnings.length > 0 && (
             <div>
@@ -968,5 +974,13 @@ export default function ResultPanel({ viewModel }) {
     </section>
   );
 }
+
+
+
+
+
+
+
+
 
 

@@ -1,10 +1,11 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import AdvancedResultPane from './AdvancedResultPane.jsx';
 import { PriorityActionList } from './PriorityActionList';
 import ControlPanel from './ControlPanel';
 import HybridStackGuidePanel from './HybridStackGuidePanel';
 import WorkspaceStatusCard from './WorkspaceStatusCard.jsx';
 import { useExperiencedSummary } from './hooks/useExperiencedSummary.js';
+import { buildExperiencedSummaryModel } from './experienced-workspace/buildExperiencedSummaryModel.js';
 import { buildAdvancedResultViewModel } from './result-panel/buildAdvancedResultViewModel.js';
 
 function renderSharedDiagnosticsLayout({
@@ -93,12 +94,6 @@ function buildDiagnosticsPanelStatus(state) {
     items: ['먼저 요구를 입력하고 요약 생성', '생성 후 상위 경고와 세부 작업판 확인'],
   };
 }
-function getGuideStatusLabel(status) {
-  if (status === 'success') return '추천 준비됨';
-  if (status === 'loading') return '추천 생성 중';
-  if (status === 'error') return '추천 확인 필요';
-  return '추천 전';
-}
 
 function getValidationSeverityLabel(severity) {
   if (severity === 'high') return '검토 필요 높음';
@@ -163,12 +158,15 @@ export default function ExperiencedWorkspace({
   const modelLabel = state.isModelOptionsLoading
     ? '불러오는 중'
     : (state.selectedModel || state.modelOptions[0] || state.activeModel || '선택 안 됨');
-  const guideStatusLabel = getGuideStatusLabel(state.hybridStackGuideStatus);
 
   useEffect(() => {
     setIsDiagnosticsOpen(!compactMode);
   }, [compactMode]);
 
+  const summaryModel = useMemo(
+    () => buildExperiencedSummaryModel({ state, derived }),
+    [derived.clarifyLoop, derived.devSpec, derived.masterPrompt, derived.nondevSpec, derived.standardOutput, derived.validationReport, state.hybridStackGuide, state.hybridStackGuideStatus],
+  );
   const {
     todayActions,
     topWarnings,
@@ -178,10 +176,16 @@ export default function ExperiencedWorkspace({
     handleCopyExperiencedPrompt,
     completionScore,
     validationSeverity,
+    hasValidationReport,
+    guideData,
+    guideStatus,
+    guideStatusLabel,
     validationQuestions,
+    clarifyAnswers,
+    clarifyLoopTurn,
     canSubmitClarification,
   } = useExperiencedSummary({
-    derived,
+    summaryModel,
     selectedImplementationStack,
   });
   const statusCard = buildExperiencedStatus(state);
@@ -324,7 +328,7 @@ export default function ExperiencedWorkspace({
                 <span className="pill">현재 모델: {state.activeModel}</span>
                 <span className="pill">구현 가이드: {guideStatusLabel}</span>
                 {completionScore !== null && <span className="pill">완성도: {completionScore}</span>}
-                {derived.validationReport && <span className="pill">검토 상태: {getValidationSeverityLabel(validationSeverity)}</span>}
+                {hasValidationReport && <span className="pill">검토 상태: {getValidationSeverityLabel(validationSeverity)}</span>}
               </div>
 
               <section className="experienced-summary-card experienced-priority-card">
@@ -352,7 +356,7 @@ export default function ExperiencedWorkspace({
                     현재 결과의 누락 항목만 짧게 채우고, 반영 후 다시 직접 생성합니다.
                   </p>
                   <div className="stack-actions">
-                    <span className="pill">보완 차수: {Number(derived.clarifyLoop?.loopTurn || 0)}</span>
+                    <span className="pill">보완 차수: {clarifyLoopTurn}</span>
                     <span className="pill">질문 수: {validationQuestions.length}</span>
                   </div>
                   <div className="form-group">
@@ -361,7 +365,7 @@ export default function ExperiencedWorkspace({
                         <label>{question}</label>
                         <textarea
                           rows={2}
-                          value={typeof derived.clarifyLoop?.answers?.[question] === 'string' ? derived.clarifyLoop.answers[question] : ''}
+                          value={typeof clarifyAnswers?.[question] === 'string' ? clarifyAnswers[question] : ''}
                           onChange={(event) => actions.setClarifyAnswer(question, event.target.value)}
                           placeholder="확정된 정보만 짧게 입력하세요."
                           disabled={state.status === 'processing'}
@@ -416,8 +420,8 @@ export default function ExperiencedWorkspace({
 
               <section className="experienced-summary-card">
                 <HybridStackGuidePanel
-                  guide={state.hybridStackGuide}
-                  status={state.hybridStackGuideStatus}
+                  guide={guideData}
+                  status={guideStatus}
                   compact
                   title="추천 구현 스택"
                   selectedStackId={selectedImplementationStack?.id || ''}
@@ -464,5 +468,3 @@ export default function ExperiencedWorkspace({
     </section>
   );
 }
-
-

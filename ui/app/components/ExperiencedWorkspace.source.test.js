@@ -1,4 +1,4 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -24,4 +24,12 @@ test('ExperiencedWorkspace delegates advanced result input shaping to the shared
   assert.match(source, /세부 진단은 결과 생성 후 열립니다/);
   assert.match(source, /resultViewModel=\{buildAdvancedResultViewModel\(/);
   assert.match(source, /personaCapabilities: diagnosticsCapabilities/);
+});
+
+test('ExperiencedWorkspace builds a quick-mode summary model before entering the hook', () => {
+  assert.match(source, /const summaryModel = useMemo\(/);
+  assert.match(source, /buildExperiencedSummaryModel\(\{ state, derived \}\)/);
+  assert.match(source, /summaryModel,/);
+  assert.doesNotMatch(source, /derived\.validationReport\?\./);
+  assert.doesNotMatch(source, /derived\.clarifyLoop\?\./);
 });
